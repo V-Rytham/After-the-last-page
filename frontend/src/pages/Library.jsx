@@ -98,7 +98,7 @@ export default function Library({ currentUser }) {
   const error = showSearchResults ? searchState.error : recError;
   const isTypingSearch = Boolean(normalizeQuery(search)) && normalizeQuery(search) !== normalizedSearch;
   const searchHeading = !showSearchResults
-    ? 'Search'
+    ? 'Curated for you'
     : (loading || isTypingSearch ? 'Searching' : 'Search Results');
 
   return (

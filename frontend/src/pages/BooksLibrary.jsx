@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../utils/api';
 import { getReadingSessionsForCurrentUser } from '../utils/readingSession';
-import { Search, X } from 'lucide-react';
 import CurrentReadingCard from '../components/desk/CurrentReadingCard';
 import BookCardEditorial from '../components/desk/BookCardEditorial';
 import RecommendationRow from '../components/desk/RecommendationRow';
@@ -244,6 +243,7 @@ const BooksLibrary = ({ currentUser }) => {
   const sessionForBook = useCallback((book) => getBookSession(sessions, book), [sessions]);
 
   const recommendationTitle = `Because you read ${recommendationBase?.title || currentReading?.book?.title || 'your recent books'}`;
+  const recommendationLoadingTitle = 'Curating recommendations for you';
   const matchesSearchAndCategory = useCallback((book) => {
     if (!book) return false;
 
@@ -293,32 +293,6 @@ const BooksLibrary = ({ currentUser }) => {
     !isMember ? <AuthRequired previewClassName="desk-page" previewLabel="" /> : (
     <div className="desk-page editorial-theme">
       <div className="desk-shell">
-        <section className="desk-search-panel" aria-label="Filter books on desk">
-          <div className="desk-search-shell">
-            <form className="desk-search desk-search--modern" role="search" onSubmit={(event) => event.preventDefault()}>
-              <Search size={18} aria-hidden="true" className="desk-search__icon" />
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search by title or author"
-                aria-label="Search by title or author"
-                autoComplete="off"
-              />
-              {searchTerm.trim() ? (
-                <button
-                  type="button"
-                  className="desk-search__clear"
-                  onClick={() => setSearchTerm('')}
-                  aria-label="Clear search"
-                >
-                  <X size={15} />
-                </button>
-              ) : null}
-            </form>
-
-          </div>
-        </section>
-
         <section className="desk-hero" aria-label="Current reading">
           <h2>{greeting}</h2>
           {loading
@@ -348,7 +322,7 @@ const BooksLibrary = ({ currentUser }) => {
         {recommendationLoading && (
           <section className="desk-section" aria-label="Recommendations loading">
             <div className="desk-section__heading">
-              <h2>{recommendationTitle}</h2>
+              <h2>{recommendationLoadingTitle}</h2>
               <p>Finding books matched to your reading history.</p>
             </div>
             <div className="card-row card-row--recommendations" role="status" aria-label="Loading recommendations">
