@@ -19,14 +19,19 @@ export const getSearch = async (req, res) => {
 
     if (searchClient.isEnabled()) {
       try {
+        log('[SEARCH] Delegating query to search microservice', { q });
         const payload = await searchClient.get(`/api/search?q=${encodeURIComponent(q)}`);
-        return res.json({ books: Array.isArray(payload?.books) ? payload.books : [] });
+        const books = Array.isArray(payload?.books) ? payload.books : [];
+        log('[SEARCH] Search microservice response received', { q, books: books.length });
+        return res.json({ books });
       } catch (error) {
         if (!error?.allowLocalFallback) throw error;
+        log('[SEARCH] Search microservice failed; using local fallback', { q, reason: error?.message || 'unknown' });
       }
     }
 
     const books = await runGlobalSearch({ q });
+    log('[SEARCH] Local aggregated search completed', { q, books: Array.isArray(books) ? books.length : 0 });
     return res.json({ books });
   } catch (error) {
     console.error('[SEARCH] Failed:', error?.message || error);
