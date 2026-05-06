@@ -10,7 +10,6 @@ const SearchBar = ({
   activeCategory,
   onCategoryChange,
   inputClassName = '',
-  searchLabel = 'Search',
 }) => {
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -30,7 +29,6 @@ const SearchBar = ({
       <form className="search-container" role="search" onSubmit={handleSubmit} aria-busy={loading ? 'true' : 'false'}>
         <div className="search-input-wrap">
           <Search size={15} aria-hidden="true" className="search-input-icon" />
-          <span className="search-state-label" aria-live="polite">{searchLabel}</span>
           <input
             value={value}
             onChange={(event) => onChange(event.target.value)}

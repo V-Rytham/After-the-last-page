@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
@@ -153,7 +153,7 @@ export default function MeetingAccessHub() {
 
       {loading ? (
         <section className="meeting-access-results" aria-label="Loading books">
-          {Array.from({ length: 6 }).map((_, index) => (
+          {Array.from({ length: 2 }).map((_, index) => (
             <article key={`skeleton-${index}`} className="meeting-book-card meeting-book-card--skeleton glass-panel" aria-hidden="true">
               <div className="meeting-book-skeleton-line meeting-book-skeleton-line--title" />
               <div className="meeting-book-skeleton-line meeting-book-skeleton-line--subtitle" />
@@ -164,7 +164,7 @@ export default function MeetingAccessHub() {
 
       {!loading && !hasQuery && featuredLoading && visibleBooks.length === 0 ? (
         <section className="meeting-access-results" aria-label="Loading books">
-          {Array.from({ length: 6 }).map((_, index) => (
+          {Array.from({ length: 2 }).map((_, index) => (
             <article key={`featured-skeleton-${index}`} className="meeting-book-card meeting-book-card--skeleton glass-panel" aria-hidden="true">
               <div className="meeting-book-skeleton-line meeting-book-skeleton-line--title" />
               <div className="meeting-book-skeleton-line meeting-book-skeleton-line--subtitle" />

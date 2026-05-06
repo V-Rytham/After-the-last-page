@@ -152,65 +152,6 @@ html[data-theme='sepia'] .editorial-theme {
   cursor: pointer;
 }
 
-.desk-filter-pills {
-  display: flex;
-  align-items: center;
-  gap: 0.44rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  width: 100%;
-}
-
-.desk-filter-pills::-webkit-scrollbar {
-  display: none;
-}
-
-.desk-filter-pill {
-  border: 1px solid var(--desk-border);
-  background: var(--desk-card-bg);
-  color: var(--desk-text);
-  border-radius: 999px;
-  padding: 0.32rem 0.68rem;
-  font-size: 0.76rem;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease;
-}
-
-.desk-filter-row {
-  width: min(440px, 100%);
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.desk-filter-nav {
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid var(--desk-border);
-  background: var(--desk-card-bg);
-  color: var(--desk-text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.desk-filter-nav:hover,
-.desk-filter-nav:focus-visible {
-  background: var(--surface-muted);
-  outline: none;
-}
-
-.desk-filter-pill.is-active {
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border-color: var(--accent);
-}
-
 .desk-hero,
 .desk-section {
   display: grid;
@@ -762,7 +703,4 @@ html[data-theme='dark'] .current-reading-card__resume {
     width: min(520px, 100%);
   }
 
-  .desk-filter-row {
-    width: min(420px, 100%);
-  }
 }

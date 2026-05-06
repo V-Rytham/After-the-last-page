@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../utils/api';
 import { getReadingSessionsForCurrentUser } from '../utils/readingSession';
-import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import CurrentReadingCard from '../components/desk/CurrentReadingCard';
 import BookCardEditorial from '../components/desk/BookCardEditorial';
 import RecommendationRow from '../components/desk/RecommendationRow';
@@ -39,23 +39,7 @@ const withRetry = async (fn, retries = 2, attempt = 0) => {
 const getBookKey = (book) => String(book?._id || book?.id || book?.gutenbergId || `${book?.title || 'book'}-${book?.author || 'unknown'}`);
 const getBookObjectId = (book) => String(book?._id || book?.id || '');
 
-const getBookGenres = (book) => {
-  const values = [
-    ...(Array.isArray(book?.tags) ? book.tags : []),
-    ...(Array.isArray(book?.genres) ? book.genres : []),
-    ...(Array.isArray(book?.subjects) ? book.subjects : []),
-    ...(Array.isArray(book?.categories) ? book.categories : []),
-    ...(book?.genre ? [book.genre] : []),
-  ];
-
-  return values
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
-};
-
 const normalizeFilterValue = (value) => String(value || '').trim().toLowerCase();
-const normalizeCategoryValue = (value) => normalizeFilterValue(value).replace(/[^a-z0-9]/g, '');
-
 const getBookSession = (sessions, book) => {
   if (!book || !sessions || typeof sessions !== 'object') return null;
   const sessionByKey = sessions[getBookKey(book)] || sessions[getBookObjectId(book)];
@@ -187,7 +171,6 @@ const BooksLibrary = ({ currentUser }) => {
   const [error, setError] = useState('');
   const [recommendationError, setRecommendationError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
 
   useEffect(() => {
     try {
@@ -261,21 +244,6 @@ const BooksLibrary = ({ currentUser }) => {
   const sessionForBook = useCallback((book) => getBookSession(sessions, book), [sessions]);
 
   const recommendationTitle = `Because you read ${recommendationBase?.title || currentReading?.book?.title || 'your recent books'}`;
-  const categoryOptions = useMemo(() => ([
-    { value: 'all', label: 'All' },
-    { value: 'fiction', label: 'Fiction' },
-    { value: 'philosophy', label: 'Philosophy' },
-    { value: 'adventure', label: 'Adventure' },
-    { value: 'sci-fi', label: 'Sci-Fi' },
-  ]), []);
-  const pillScrollerRef = useRef(null);
-
-  useEffect(() => {
-    if (!categoryOptions.some((option) => option.value === activeCategory)) {
-      setActiveCategory('all');
-    }
-  }, [activeCategory, categoryOptions]);
-
   const matchesSearchAndCategory = useCallback((book) => {
     if (!book) return false;
 
@@ -287,16 +255,8 @@ const BooksLibrary = ({ currentUser }) => {
       return false;
     }
 
-    if (activeCategory !== 'all') {
-      const normalizedCategory = normalizeCategoryValue(activeCategory);
-      const genres = getBookGenres(book).map((genre) => normalizeCategoryValue(genre));
-      if (!genres.some((genre) => genre.includes(normalizedCategory) || normalizedCategory.includes(genre))) {
-        return false;
-      }
-    }
-
     return true;
-  }, [activeCategory, searchTerm]);
+  }, [searchTerm]);
 
   const filteredRecentActivity = useMemo(
     () => recentActivity.filter(({ book }) => matchesSearchAndCategory(book)),
@@ -323,7 +283,7 @@ const BooksLibrary = ({ currentUser }) => {
     || filteredSocialRecommendations.length > 0;
   const hasNoFilterResults = !loading
     && !recommendationLoading
-    && Boolean(searchTerm.trim() || activeCategory !== 'all')
+    && Boolean(searchTerm.trim())
     && filteredRecentActivity.length === 0
     && filteredContentRecommendations.length === 0
     && filteredPopularRecommendations.length === 0
@@ -356,41 +316,6 @@ const BooksLibrary = ({ currentUser }) => {
               ) : null}
             </form>
 
-            <div className="desk-filter-row">
-              <button
-                type="button"
-                className="desk-filter-nav"
-                aria-label="Scroll categories left"
-                onClick={() => pillScrollerRef.current?.scrollBy({ left: -180, behavior: 'smooth' })}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <div ref={pillScrollerRef} className="desk-filter-pills" role="tablist" aria-label="Desk categories">
-                {categoryOptions.map((option) => {
-                  const isActive = option.value === activeCategory;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="tab"
-                      aria-selected={isActive}
-                      className={`desk-filter-pill${isActive ? ' is-active' : ''}`}
-                      onClick={() => setActiveCategory(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                type="button"
-                className="desk-filter-nav"
-                aria-label="Scroll categories right"
-                onClick={() => pillScrollerRef.current?.scrollBy({ left: 180, behavior: 'smooth' })}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
           </div>
         </section>
 
@@ -468,7 +393,7 @@ const BooksLibrary = ({ currentUser }) => {
 
         {hasNoFilterResults && (
           <section className="desk-section" aria-label="No matching books">
-            <p className="desk-empty-copy">No books match your current search and category filters.</p>
+            <p className="desk-empty-copy">No books match your current search.</p>
           </section>
         )}
 

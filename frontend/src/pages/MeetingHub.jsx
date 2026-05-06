@@ -685,25 +685,37 @@ const MeetingHub = () => {
               <span>Back</span>
             </button>
 
-            <h2 className="font-serif text-center mb-2">How would you like to connect?</h2>
-            <p className="text-muted text-center mb-8">Select your preferred medium to chat about <em>{book.title}</em>. Your identity remains anonymous.</p>
-            <div className="pref-options">
-              <button type="button" className={`pref-card ${prefType === 'text' ? 'selected' : ''}`} onClick={() => { setPrefType('text'); setMatchNotice(''); }}><MessageSquare className="pref-icon" size={26} strokeWidth={2.1} /><h3>Text Chat</h3><p>Quiet, thoughtful chat.</p></button>
-              <button type="button" className={`pref-card ${prefType === 'voice' ? 'selected' : ''}`} onClick={() => { setPrefType('voice'); setMatchNotice(''); }}><Mic className="pref-icon" size={26} strokeWidth={2.1} /><h3>Voice Call</h3><p>Vocalize your thoughts securely.</p></button>
-              <button type="button" className={`pref-card ${prefType === 'video' ? 'selected' : ''}`} onClick={() => { setPrefType('video'); setMatchNotice(''); }}><Video className="pref-icon" size={26} strokeWidth={2.1} /><h3>Video Call</h3><p>Face-to-face, masked connection.</p></button>
+            <div className="meeting-pref-header">
+              <h2 className="font-serif">How would you like to connect?</h2>
+              <p>Select your preferred medium to chat about <em>{book.title}</em>. Your identity remains anonymous.</p>
+            </div>
+
+            <div className="pref-options" aria-label="Connection method options">
+              <button type="button" className={`pref-card ${prefType === 'text' ? 'selected' : ''}`} onClick={() => { setPrefType('text'); setMatchNotice(''); }}>
+                <span className="pref-icon-shell"><MessageSquare className="pref-icon" size={22} strokeWidth={2.1} /></span>
+                <span className="pref-card-copy"><strong>Text Chat</strong><span>Quiet, thoughtful chat.</span></span>
+              </button>
+              <button type="button" className={`pref-card ${prefType === 'voice' ? 'selected' : ''}`} onClick={() => { setPrefType('voice'); setMatchNotice(''); }}>
+                <span className="pref-icon-shell"><Mic className="pref-icon" size={22} strokeWidth={2.1} /></span>
+                <span className="pref-card-copy"><strong>Voice Call</strong><span>Vocalize your thoughts securely.</span></span>
+              </button>
+              <button type="button" className={`pref-card ${prefType === 'video' ? 'selected' : ''}`} onClick={() => { setPrefType('video'); setMatchNotice(''); }}>
+                <span className="pref-icon-shell"><Video className="pref-icon" size={22} strokeWidth={2.1} /></span>
+                <span className="pref-card-copy"><strong>Video Call</strong><span>Face-to-face, masked connection.</span></span>
+              </button>
             </div>
             {matchNotice && <div className="meeting-notice" role="status">{matchNotice}</div>}
-            <div className="mt-8 text-center flex-column-center gap-4">
-              <button className="btn-primary" disabled={!prefType || !socketReady} onClick={handleStartSearch}>
+            <div className="meeting-pref-actions">
+              <button className="btn-primary meeting-primary-action" disabled={!prefType || !socketReady} onClick={handleStartSearch}>
                 Find a reading partner <ArrowRight size={18} />
               </button>
-              <button className="btn-secondary" onClick={handleStartBookFriend} disabled={bookFriendStarting}>
+              <button className="btn-secondary meeting-secondary-action" onClick={handleStartBookFriend} disabled={bookFriendStarting}>
                 {bookFriendStarting ? 'Connecting BookFriend…' : (<><Bot size={16} /> Chat with BookFriend</>)}
               </button>
-                  {isObjectId ? (
-                    <button className="btn-secondary" onClick={() => navigate(`/thread/${bookId}`)}>Open the book threads instead</button>
-                  ) : null}
-                </div>
+              {isObjectId ? (
+                <button className="meeting-tertiary-action" onClick={() => navigate(`/thread/${bookId}`)}>Open the book threads instead</button>
+              ) : null}
+            </div>
           </div>
         </div>
       )}
