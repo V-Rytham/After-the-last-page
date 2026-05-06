@@ -1,5 +1,13 @@
 import { runGlobalSearch } from '../services/searchService.js';
+import { createMicroserviceClient } from '../services/microserviceProxy.js';
 import { log } from '../utils/logger.js';
+
+const searchClient = createMicroserviceClient({
+  envBaseUrlKey: 'SEARCH_SERVICE_URL',
+  envTimeoutMsKey: 'SEARCH_SERVICE_TIMEOUT_MS',
+  envEnabledKey: 'SEARCH_SERVICE_ENABLED',
+  fallbackEnabled: true,
+});
 
 export const getSearch = async (req, res) => {
   try {
@@ -7,6 +15,15 @@ export const getSearch = async (req, res) => {
     const q = String(req.query?.q || '').trim();
     if (!q) {
       return res.json({ books: [] });
+    }
+
+    if (searchClient.isEnabled()) {
+      try {
+        const payload = await searchClient.get(`/api/search?q=${encodeURIComponent(q)}`);
+        return res.json({ books: Array.isArray(payload?.books) ? payload.books : [] });
+      } catch (error) {
+        if (!error?.allowLocalFallback) throw error;
+      }
     }
 
     const books = await runGlobalSearch({ q });
