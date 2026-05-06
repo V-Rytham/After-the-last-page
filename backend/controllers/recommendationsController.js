@@ -1,16 +1,10 @@
-import { buildRecommendations } from '../services/recommendationsService.js';
 import { createMicroserviceClient } from '../services/microserviceProxy.js';
-import {
-  invalidateRecommendationCacheV2,
-  mergeAndRankRecommendations,
-  trackRecommendationClickV2,
-} from '../services/recommendationEngineV2.js';
 
 const recommendationsClient = createMicroserviceClient({
   envBaseUrlKey: 'RECOMMENDATIONS_SERVICE_URL',
   envTimeoutMsKey: 'RECOMMENDATIONS_SERVICE_TIMEOUT_MS',
   envEnabledKey: 'RECOMMENDATIONS_SERVICE_ENABLED',
-  fallbackEnabled: true,
+  fallbackEnabled: false,
 });
 
 const normalizeGenre = (value) => String(value || '').trim().toLowerCase();
@@ -24,63 +18,68 @@ export const postRecommendations = async (req, res) => {
       return res.status(400).json({ message: 'genres must be a non-empty array.' });
     }
 
-    if (recommendationsClient.isEnabled()) {
-      try {
-        const delegated = await recommendationsClient.post('/api/recommendations', { genres: normalized });
-        return res.json(delegated);
-      } catch (error) {
-        console.warn('[RECOMMENDATIONS] Remote service unavailable, falling back locally:', error?.message || error);
-      }
+    if (!recommendationsClient.isEnabled()) {
+      return res.status(503).json({
+        message: 'Recommendations service unavailable.',
+        code: 'RECOMMENDATIONS_SERVICE_DISABLED',
+      });
     }
 
-    const result = await buildRecommendations({ genres: normalized });
-
-    return res.json({
-      books: result.books,
-      personalized: true,
-    });
+    const delegated = await recommendationsClient.post('/api/recommendations', { genres: normalized });
+    return res.json(delegated);
   } catch (error) {
-    console.error('[RECOMMENDATIONS] Failed:', error?.message || error);
-    return res.status(500).json({ message: 'Failed to generate recommendations.' });
+    const statusCode = Number.isFinite(error?.statusCode) ? Number(error.statusCode) : 503;
+    return res.status(statusCode).json({
+      message: String(error?.message || 'Failed to fetch recommendations.'),
+      code: 'RECOMMENDATIONS_SERVICE_ERROR',
+      details: error?.payload || null,
+    });
   }
 };
 
 export const getRecommendationsForYou = async (req, res) => {
   try {
-    const userId = String(req.user?._id || '').trim();
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized.' });
+    if (!recommendationsClient.isEnabled()) {
+      return res.status(503).json({
+        message: 'Recommendations service unavailable.',
+        code: 'RECOMMENDATIONS_SERVICE_DISABLED',
+      });
     }
 
-    const actionName = String(req.headers['x-book-action-name'] || '').trim().toLowerCase();
-    if (actionName === 'add' || actionName === 'remove') {
-      invalidateRecommendationCacheV2(userId);
-    }
-
-    const response = await mergeAndRankRecommendations(userId);
+    const response = await recommendationsClient.post('/api/recommendations/for-you', req.body || {}, {
+      Authorization: req.headers.authorization || '',
+      'x-book-action-name': req.headers['x-book-action-name'] || '',
+    });
     return res.json(response);
   } catch (error) {
-    console.error('[RECOMMENDATIONS_V2] Failed:', error?.message || error);
-    return res.status(500).json({ message: 'Failed to fetch personalized recommendations.' });
+    const statusCode = Number.isFinite(error?.statusCode) ? Number(error.statusCode) : 503;
+    return res.status(statusCode).json({
+      message: String(error?.message || 'Failed to fetch personalized recommendations.'),
+      code: 'RECOMMENDATIONS_SERVICE_ERROR',
+      details: error?.payload || null,
+    });
   }
 };
 
 export const postRecommendationClick = async (req, res) => {
   try {
-    const userId = String(req.user?._id || '').trim();
-    const bookId = String(req.body?.bookId || '').trim();
-
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized.' });
+    if (!recommendationsClient.isEnabled()) {
+      return res.status(503).json({
+        message: 'Recommendations service unavailable.',
+        code: 'RECOMMENDATIONS_SERVICE_DISABLED',
+      });
     }
 
-    if (!bookId) {
-      return res.status(400).json({ message: 'bookId is required.' });
-    }
-
-    trackRecommendationClickV2({ userId, bookId });
+    await recommendationsClient.post('/api/recommendations/for-you/click', req.body || {}, {
+      Authorization: req.headers.authorization || '',
+    });
     return res.status(204).send();
-  } catch {
-    return res.status(500).json({ message: 'Failed to track recommendation click.' });
+  } catch (error) {
+    const statusCode = Number.isFinite(error?.statusCode) ? Number(error.statusCode) : 503;
+    return res.status(statusCode).json({
+      message: String(error?.message || 'Failed to track recommendation click.'),
+      code: 'RECOMMENDATIONS_SERVICE_ERROR',
+      details: error?.payload || null,
+    });
   }
 };
