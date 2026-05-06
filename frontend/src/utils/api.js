@@ -35,6 +35,8 @@ const api = axios.create({
   withCredentials: true,
 });
 
+const isHealthRequest = (url = '') => /\/health(?:\?.*)?$/i.test(String(url || ''));
+
 // Add interceptor to inject token if we have one
 api.interceptors.request.use(
   async (config) => {
@@ -47,12 +49,14 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    const identity = getOrCreateIdentity();
-    if (identity?.userId) {
-      config.headers['X-User-Id'] = identity.userId;
-    }
-    if (identity?.displayName) {
-      config.headers['X-Display-Name'] = identity.displayName;
+    if (!isHealthRequest(config?.url)) {
+      const identity = getOrCreateIdentity();
+      if (identity?.userId) {
+        config.headers['X-User-Id'] = identity.userId;
+      }
+      if (identity?.displayName) {
+        config.headers['X-Display-Name'] = identity.displayName;
+      }
     }
 
     return config;
