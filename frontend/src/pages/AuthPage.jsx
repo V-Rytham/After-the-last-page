@@ -287,8 +287,8 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
 
           {mode === 'login' ? (
             <form className="auth-form" onSubmit={handleLogin}>
-              <label className="auth-label"><span>Email</span><span className="auth-input-wrap"><Mail size={18} strokeWidth={2} className="auth-field-icon" /><input name="email" type="email" value={loginForm.email} onChange={handleLoginChange} className="auth-input" required /></span></label>
-              <label className="auth-label"><span>Password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="password" type="password" value={loginForm.password} onChange={handleLoginChange} className="auth-input" required /></span></label>
+              <label className="auth-label"><span>Email</span><span className="auth-input-wrap"><Mail size={18} strokeWidth={2} className="auth-field-icon" /><input name="email" type="email" value={loginForm.email} onChange={handleLoginChange} className="auth-input" autoComplete="email" required /></span></label>
+              <label className="auth-label"><span>Password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="password" type="password" value={loginForm.password} onChange={handleLoginChange} className="auth-input" autoComplete="current-password" required /></span></label>
               <button type="submit" className="btn-primary auth-submit" disabled={submitting}>{submitting ? 'Signing in...' : 'Login'} <ArrowRight size={18} /></button>
             </form>
           ) : (
@@ -304,10 +304,10 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
               </div>
               <label className="auth-label"><span>Bio <em>(optional)</em></span><textarea name="bio" value={signupForm.bio} onChange={handleSignupChange} className="auth-input auth-textarea" maxLength={160} rows={3} placeholder="A short note about what you read or how you show up in discussion." /></label>
               <div className="auth-character-count">{signupForm.bio.length}/160</div>
-              <label className="auth-label"><span>Email</span><span className="auth-input-wrap"><Mail size={18} strokeWidth={2} className="auth-field-icon" /><input name="email" type="email" value={signupForm.email} onChange={handleSignupChange} className="auth-input" required /></span></label>
+              <label className="auth-label"><span>Email</span><span className="auth-input-wrap"><Mail size={18} strokeWidth={2} className="auth-field-icon" /><input name="email" type="email" value={signupForm.email} onChange={handleSignupChange} className="auth-input" autoComplete="email" required /></span></label>
               <div className="auth-form-grid auth-form-grid-split">
-                <label className="auth-label"><span>Password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="password" type="password" value={signupForm.password} onChange={handleSignupChange} className="auth-input" minLength={6} required /></span></label>
-                <label className="auth-label"><span>Confirm password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="confirmPassword" type="password" value={signupForm.confirmPassword} onChange={handleSignupChange} className="auth-input" minLength={6} required /></span></label>
+                <label className="auth-label"><span>Password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="password" type="password" value={signupForm.password} onChange={handleSignupChange} className="auth-input" autoComplete="new-password" minLength={6} required /></span></label>
+                <label className="auth-label"><span>Confirm password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="confirmPassword" type="password" value={signupForm.confirmPassword} onChange={handleSignupChange} className="auth-input" autoComplete="new-password" minLength={6} required /></span></label>
               </div>
               <label className="auth-label"><span>Profile image <em>(optional)</em></span><input name="profileImageFile" type="file" accept="image/*" onChange={handleSignupChange} className="auth-input" /></label>
               <button type="submit" className="btn-primary auth-submit" disabled={submitting || usernameState.status === 'checking'}>{submitting ? 'Creating account...' : 'Create account'} <ArrowRight size={18} /></button>
