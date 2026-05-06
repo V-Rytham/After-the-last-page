@@ -153,10 +153,13 @@ const corsOptions = {
 
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
-  // 🔥 THIS FIXES YOUR ERROR
-  allowedHeaders: (req, callback) => {
-    callback(null, req.headers['access-control-request-headers']);
-  },
+  // Explicitly allow custom identity headers used by the frontend client.
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-User-Id',
+    'X-Display-Name',
+  ],
 
   credentials: true,
 };
