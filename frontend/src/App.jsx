@@ -50,7 +50,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
 
   return (
     <div className="app-container">
-      <AppIntro enabled={showHomeIntro} />
+      {showHomeIntro && <AppIntro key={location.key} enabled />}
       <SessionNavigationGuard />
       {!hideNavbar && (
         <Navbar currentUser={currentUser} onLogout={onLogout} uiTheme={uiTheme} onThemeChange={onThemeChange} />
@@ -193,4 +193,3 @@ const App = () => {
 };
 
 export default App;
-

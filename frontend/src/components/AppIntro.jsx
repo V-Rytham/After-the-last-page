@@ -1,23 +1,14 @@
 import React, { useEffect, useState } from 'react';
 
-const INTRO_SESSION_KEY = 'atlp-home-intro-seen';
-
-const shouldShowIntro = (enabled) => {
-  if (!enabled || typeof window === 'undefined') return false;
-
-  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-  const alreadySeen = window.sessionStorage.getItem(INTRO_SESSION_KEY) === 'true';
-  window.sessionStorage.setItem(INTRO_SESSION_KEY, 'true');
-
-  return !alreadySeen && !prefersReducedMotion;
-};
-
 const AppIntro = ({ enabled }) => {
-  const [visible, setVisible] = useState(() => shouldShowIntro(enabled));
+  const [visible, setVisible] = useState(enabled);
   const [leaving, setLeaving] = useState(false);
 
+  const prefersReducedMotion = typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+
   useEffect(() => {
-    if (!visible) return undefined;
+    if (!visible || prefersReducedMotion) return undefined;
 
     const leaveTimer = window.setTimeout(() => setLeaving(true), 1450);
     const doneTimer = window.setTimeout(() => setVisible(false), 1900);
@@ -26,9 +17,9 @@ const AppIntro = ({ enabled }) => {
       window.clearTimeout(leaveTimer);
       window.clearTimeout(doneTimer);
     };
-  }, [visible]);
+  }, [prefersReducedMotion, visible]);
 
-  if (!visible) return null;
+  if (!visible || prefersReducedMotion) return null;
 
   return (
     <div className={`app-intro${leaving ? ' is-leaving' : ''}`} role="status" aria-live="polite" aria-label="Opening After the Last Page">
