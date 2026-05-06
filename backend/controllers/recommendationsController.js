@@ -46,7 +46,7 @@ export const getRecommendationsForYou = async (req, res) => {
       });
     }
 
-    const response = await recommendationsClient.post('/api/recommendations/for-you', req.body || {}, {
+    const response = await recommendationsClient.get('/api/recommendations/for-you', {
       Authorization: req.headers.authorization || '',
       'x-book-action-name': req.headers['x-book-action-name'] || '',
     });
