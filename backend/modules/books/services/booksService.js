@@ -3,6 +3,7 @@ import { isDegradedMode } from '../../../utils/degradedMode.js';
 import { appConfig } from '../../../shared/config/appConfig.js';
 import { MemoryCache } from '../../../shared/cache/memoryCache.js';
 import { createMicroserviceClient } from '../../../services/microserviceProxy.js';
+import { log } from '../../../utils/logger.js';
 import {
   buildReadBookBySourceDto,
   buildReaderOptionsDto,
@@ -104,17 +105,23 @@ export class BooksService {
       }));
 
     let aggregated = [];
+    let remoteSearchFailed = false;
     if (searchClient.isEnabled()) {
       try {
+        log('[BOOKS_SEARCH] Delegating query to search microservice', { q });
         const payload = await searchClient.get(`/api/books/search?q=${encodeURIComponent(q)}`);
         aggregated = Array.isArray(payload?.results) ? payload.results : [];
+        log('[BOOKS_SEARCH] Search microservice response received', { q, results: aggregated.length });
       } catch (error) {
         if (!error?.allowLocalFallback) throw error;
+        remoteSearchFailed = true;
+        log('[BOOKS_SEARCH] Search microservice failed; using local fallback', { q, reason: error?.message || 'unknown' });
       }
     }
 
-    if (!aggregated.length) {
+    if (!searchClient.isEnabled() || remoteSearchFailed) {
       aggregated = await this.repository.runAggregatedSearch(q);
+      log('[BOOKS_SEARCH] Local aggregated search completed', { q, results: aggregated.length });
     }
     if (aggregated.length === 0 && /^\d+$/.test(q)) {
       try {
