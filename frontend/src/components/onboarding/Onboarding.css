@@ -1,0 +1,88 @@
+.onboarding-fade-in {
+  animation: onboardingFadeIn 240ms ease both;
+}
+
+@keyframes onboardingFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.onboarding-target-glow {
+  position: relative;
+  z-index: 2;
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 3px;
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--accent) 14%, transparent),
+    0 18px 45px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.onboarding-card {
+  position: fixed;
+  right: clamp(1rem, 2.2vw, 1.8rem);
+  bottom: clamp(1rem, 2.2vw, 1.8rem);
+  z-index: 60;
+  width: min(22rem, calc(100vw - 2rem));
+  border: 1px solid var(--border-soft);
+  border-radius: 1rem;
+  background: var(--surface-1);
+  box-shadow: var(--shadow-panel);
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.onboarding-card__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.onboarding-card__subtitle {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-top: 0.1rem;
+}
+
+.onboarding-card__btn {
+  min-height: 2.55rem;
+  padding: 0 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--intent-btn-border);
+  background: var(--intent-btn-bg);
+  color: var(--intent-btn-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.onboarding-tooltip {
+  position: fixed;
+  z-index: 70;
+  max-width: min(22rem, calc(100vw - 1.5rem));
+  pointer-events: none;
+}
+
+.onboarding-tooltip__bubble {
+  border-radius: 0.9rem;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-panel);
+  padding: 0.75rem 0.8rem;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.onboarding-tooltip__bubble strong {
+  font-weight: 600;
+}
+

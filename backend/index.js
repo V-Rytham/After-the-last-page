@@ -8,6 +8,7 @@ import path from 'path';
 import { connectDB } from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
 import agentRoutes from './routes/agentRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 import registerSocketEvents from './socket/socketHandler.js';
 import accessRoutes from './routes/accessRoutes.js';
 import quizRoutes from './routes/quizRoutes.js';
@@ -96,7 +97,7 @@ const io = new Server(httpServer, {
   }
 });
 
-const buildCorsOriginValidator = () => {
+const _buildCorsOriginValidator = () => {
   const allowList = buildAllowedOrigins();
 
   return (origin, callback) => {
@@ -162,7 +163,8 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-app.options('*', cors(corsOptions));
+// Express v5 / path-to-regexp no longer supports '*' as a route pattern.
+app.options(/.*/, cors(corsOptions));
 app.use(cookieParser());
 app.use(passport.initialize());
 app.use(securityHeaders);
@@ -193,6 +195,7 @@ const { booksModule } = bootstrapFeatureModules();
 
 // Routes
 app.use('/api/users', userRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/books', booksModule.router);
 app.use('/api', requireDatabase({ status: 503, feature: 'Threads' }), buildBookThreadsRoutes());
 app.use('/api/agent', agentRoutes);

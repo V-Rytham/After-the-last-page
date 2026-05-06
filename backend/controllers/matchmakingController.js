@@ -10,6 +10,8 @@ const resolveIdentity = (req) => ({
   displayName: String(req.identity?.displayName || req.body?.displayName || '').trim() || 'Reader',
 });
 
+const buildCompositeRoomId = ({ source, sourceBookId }) => `${String(source || '').trim().toLowerCase()}:${String(sourceBookId || '').trim()}`;
+
 export const createMatchmakingController = (sessionManager) => {
   if (!sessionManager) {
     throw new Error('sessionManager is required');
@@ -40,8 +42,18 @@ export const createMatchmakingController = (sessionManager) => {
         return res.status(403).json({ message: access?.message || 'Live reading rooms are only available for open-access books.' });
       }
 
-      const canonicalBook = await getCanonicalBook({ source: normalizedSource, source_book_id: normalizedSourceBookId });
-      const canonicalBookId = String(canonicalBook?.canonical_book_id || '').trim();
+      let canonicalBook = null;
+      let canonicalBookId = '';
+      try {
+        canonicalBook = await getCanonicalBook({ source: normalizedSource, source_book_id: normalizedSourceBookId });
+        canonicalBookId = String(canonicalBook?.canonical_book_id || '').trim();
+      } catch {
+        // Fail open: Meet can still work with a deterministic composite room id even if
+        // canonical metadata services (db/external fetch) are temporarily unavailable.
+        canonicalBook = null;
+        canonicalBookId = buildCompositeRoomId({ source: normalizedSource, sourceBookId: normalizedSourceBookId });
+      }
+
       if (!canonicalBookId) {
         return res.status(422).json({ message: 'Unable to resolve canonical book identity.' });
       }

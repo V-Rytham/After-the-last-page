@@ -49,6 +49,7 @@ const MeetingHub = () => {
   const [matchNotice, setMatchNotice] = useState('');
   const [searchHint, setSearchHint] = useState('');
   const [bookFriendSessionId, setBookFriendSessionId] = useState(null);
+  const [bookFriendStarting, setBookFriendStarting] = useState(false);
   const [searchSeconds, setSearchSeconds] = useState(0);
   const [searchingDots, setSearchingDots] = useState('.');
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
@@ -540,6 +541,54 @@ const MeetingHub = () => {
     });
   };
 
+  const handleStartBookFriend = async () => {
+    if (!book || bookFriendStarting) return;
+
+    setBookFriendStarting(true);
+    setMatchNotice('');
+
+    try {
+      const agentBookId = isObjectId
+        ? String(bookId)
+        : (book?.source && book?.sourceId ? `${book.source}:${book.sourceId}` : String(matchBookId));
+
+      const { data } = await api.post('/agent/start', {
+        book_id: agentBookId,
+        book_title: book?.title,
+        book_author: book?.author,
+      });
+
+      const sessionId = String(data?.session_id || '').trim();
+      if (!sessionId) {
+        throw new Error('BookFriend session unavailable.');
+      }
+
+      setBookFriendSessionId(sessionId);
+      setMessages([
+        {
+          text: `Hi — I’m BookFriend. Want to talk about “${book.title}”?`,
+          sender: 'bookfriend',
+          timestamp: new Date(),
+        },
+      ]);
+      setChatInput('');
+      setPhase('bookfriend');
+    } catch (error) {
+      const statusCode = Number(error?.response?.status || 0);
+      const serverMessage = String(error?.response?.data?.message || error?.response?.data?.error || '').trim();
+
+      if (statusCode === 401) {
+        setMatchNotice('Please sign in to use BookFriend.');
+      } else if (statusCode === 503) {
+        setMatchNotice(serverMessage || 'BookFriend is offline right now. Please try again shortly.');
+      } else {
+        setMatchNotice(serverMessage || 'Could not start BookFriend right now. Please try again.');
+      }
+    } finally {
+      setBookFriendStarting(false);
+    }
+  };
+
   const sendBookFriendMessage = async (event) => {
     event.preventDefault();
     const trimmed = chatInput.trim();
@@ -648,6 +697,9 @@ const MeetingHub = () => {
               <button className="btn-primary" disabled={!prefType || !socketReady} onClick={handleStartSearch}>
                 Find a reading partner <ArrowRight size={18} />
               </button>
+              <button className="btn-secondary" onClick={handleStartBookFriend} disabled={bookFriendStarting}>
+                {bookFriendStarting ? 'Connecting BookFriend…' : (<><Bot size={16} /> Chat with BookFriend</>)}
+              </button>
                   {isObjectId ? (
                     <button className="btn-secondary" onClick={() => navigate(`/thread/${bookId}`)}>Open the book threads instead</button>
                   ) : null}
@@ -716,9 +768,10 @@ const MeetingHub = () => {
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(event) => handleChatKeyDown(event, () => sendBookFriendMessage(event))}
                   placeholder="Share your thought..."
+                  disabled={!bookFriendSessionId}
                   rows={1}
                 />
-                <button type="submit" className="send-btn" aria-label="Send" disabled={!chatInput.trim()}>
+                <button type="submit" className="send-btn" aria-label="Send" disabled={!bookFriendSessionId || !chatInput.trim()}>
                   <Send size={16} />
                 </button>
               </form>

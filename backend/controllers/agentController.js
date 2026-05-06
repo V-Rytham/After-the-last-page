@@ -63,6 +63,13 @@ const isLocalFallbackEnabled = () => {
   return raw === 'true' || raw === '1' || raw === 'yes';
 };
 
+const shouldFallbackForBookFriendError = (error) => {
+  const status = Number(error?.statusCode || 0);
+  // The BookFriend service only supports gutenbergId / Mongo ObjectId lookups. For other
+  // sources (OpenLibrary, Google Books, etc.) it commonly returns 404, so we fall back.
+  return status === 404 || status === 422 || status === 400;
+};
+
 const parseBookId = (bookId) => {
   const raw = String(bookId || '').trim();
   const composite = raw.match(/^([a-z0-9_-]+):(.+)$/i);
@@ -220,12 +227,32 @@ const forwardToBookFriend = async (req, path, payload) => {
     const message = data?.message || 'BookFriend agent request failed.';
     const error = new Error(message);
     error.statusCode = response.status;
+    error.serviceUnavailable = response.status >= 500;
     error.payload = data;
     error.targetBaseUrl = targetBaseUrl;
     throw error;
   }
 
   return data;
+};
+
+const createLocalFallbackSession = async ({ userId, bookId, bookTitle, bookAuthor }) => {
+  const book = await findBookForAgent(bookId) || {
+    title: String(bookTitle || 'this book').trim() || 'this book',
+    author: String(bookAuthor || '').trim(),
+    synopsis: '',
+    chapters: [],
+  };
+
+  const sessionId = crypto.randomUUID();
+  localSessionStore.set(sessionId, {
+    sessionId,
+    userId,
+    book,
+    messages: [],
+  });
+
+  return { session_id: sessionId, mode: 'local-fallback' };
 };
 
 export const startAgentSession = async (req, res) => {
@@ -249,11 +276,12 @@ export const startAgentSession = async (req, res) => {
         chapter_progress: chapterProgress,
       });
     } catch (error) {
-      if (!error.serviceUnavailable) {
+      const shouldFallback = Boolean(error?.serviceUnavailable) || shouldFallbackForBookFriendError(error);
+      if (!shouldFallback) {
         throw error;
       }
 
-      if (!isLocalFallbackEnabled()) {
+      if (!isLocalFallbackEnabled() && Boolean(error?.serviceUnavailable)) {
         const body = { message: 'BookFriend service is unavailable.' };
         if (!isProd()) {
           body.target = error.targetBaseUrl || getBookFriendBaseUrl(req);
@@ -262,24 +290,17 @@ export const startAgentSession = async (req, res) => {
         return res.status(503).json(body);
       }
 
-      console.warn('[AGENT] BookFriend unavailable, using local fallback mode for start.');
-
-      const book = await findBookForAgent(bookId) || {
-        title: String(req.body?.book_title || 'this book').trim() || 'this book',
-        author: String(req.body?.book_author || '').trim(),
-        synopsis: '',
-        chapters: [],
-      };
-
-      const sessionId = crypto.randomUUID();
-      localSessionStore.set(sessionId, {
-        sessionId,
-        userId,
-        book,
-        messages: [],
+      console.warn('[AGENT] Falling back to local BookFriend mode for start.', {
+        upstreamStatus: error?.statusCode,
+        upstreamMessage: error?.message,
       });
 
-      data = { session_id: sessionId, mode: 'local-fallback' };
+      data = await createLocalFallbackSession({
+        userId,
+        bookId,
+        bookTitle: req.body?.book_title,
+        bookAuthor: req.body?.book_author,
+      });
     }
 
     res.status(201).json(data);
@@ -298,11 +319,12 @@ export const sendAgentMessage = async (req, res) => {
     try {
       data = await forwardToBookFriend(req, '/agent/message', req.body || {});
     } catch (error) {
-      if (!error.serviceUnavailable) {
+      const shouldFallback = Boolean(error?.serviceUnavailable) || shouldFallbackForBookFriendError(error);
+      if (!shouldFallback) {
         throw error;
       }
 
-      if (!isLocalFallbackEnabled()) {
+      if (!isLocalFallbackEnabled() && Boolean(error?.serviceUnavailable)) {
         const body = { message: 'BookFriend service is unavailable.' };
         if (!isProd()) {
           body.target = error.targetBaseUrl || getBookFriendBaseUrl(req);
@@ -311,7 +333,10 @@ export const sendAgentMessage = async (req, res) => {
         return res.status(503).json(body);
       }
 
-      console.warn('[AGENT] BookFriend unavailable, using local fallback mode for message.');
+      console.warn('[AGENT] Falling back to local BookFriend mode for message.', {
+        upstreamStatus: error?.statusCode,
+        upstreamMessage: error?.message,
+      });
 
       const { session_id: sessionId, message, chapter_progress: chapterProgress } = req.body || {};
 

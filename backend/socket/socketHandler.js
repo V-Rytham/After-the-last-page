@@ -55,8 +55,20 @@ export default function registerSocketEvents(io, sessionManager) {
           return;
         }
 
-        const canonical = await getCanonicalBook({ source: normalizedSource, source_book_id: normalizedSourceBookId });
-        await sessionManager.joinMatchmaking({ userId: socket.userId, displayName: socket.displayName, bookId: canonical.canonical_book_id, prefType });
+        let roomId = '';
+        try {
+          const canonical = await getCanonicalBook({ source: normalizedSource, source_book_id: normalizedSourceBookId });
+          roomId = String(canonical?.canonical_book_id || '').trim();
+        } catch {
+          roomId = `${normalizedSource}:${normalizedSourceBookId}`;
+        }
+
+        if (!roomId) {
+          socket.emit('access_denied', { message: 'Unable to resolve book identity.' });
+          return;
+        }
+
+        await sessionManager.joinMatchmaking({ userId: socket.userId, displayName: socket.displayName, bookId: roomId, prefType });
       } catch (error) {
         socket.emit('access_denied', { message: error.message || 'Unable to join matchmaking.' });
       } finally {

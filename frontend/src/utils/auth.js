@@ -1,55 +1,54 @@
-import { getOrCreateIdentity, getStoredIdentity, saveIdentity } from './identity';
+const TOKEN_KEY = 'token';
+const USER_KEY = 'currentUser';
 
-export const getStoredToken = () => '';
+const readJson = (raw) => {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+export const getStoredToken = () => window.localStorage.getItem(TOKEN_KEY);
 
 export const getStoredUser = () => {
-  const identity = getStoredIdentity() || getOrCreateIdentity();
-  if (!identity) return null;
-
-  return {
-    _id: identity.userId,
-    anonymousId: identity.displayName,
-    displayName: identity.displayName,
-    isAnonymous: false,
-  };
+  const rawUser = window.localStorage.getItem(USER_KEY);
+  const parsed = readJson(rawUser);
+  return parsed && typeof parsed === 'object' ? parsed : null;
 };
 
 export const saveAuthSession = (payload) => {
-  const nextIdentity = {
-    userId: payload?.userId || payload?._id || payload?.id,
-    displayName: payload?.displayName || payload?.anonymousId || payload?.username,
-  };
+  const effectivePayload = payload?.user && typeof payload.user === 'object'
+    ? { ...(payload.user || {}), token: payload?.token }
+    : (payload || {});
 
-  const saved = saveIdentity(nextIdentity) || getOrCreateIdentity();
-  if (!saved) return null;
+  const normalizedToken = String(effectivePayload?.token || '').trim();
+  const { token: _omitToken, ...user } = effectivePayload || {};
 
-  return {
-    _id: saved.userId,
-    anonymousId: saved.displayName,
-    displayName: saved.displayName,
-    isAnonymous: false,
-  };
+  if (normalizedToken) {
+    window.localStorage.setItem(TOKEN_KEY, normalizedToken);
+  } else if (window.localStorage.getItem(TOKEN_KEY)) {
+    window.localStorage.removeItem(TOKEN_KEY);
+  }
+
+  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+  window.localStorage.setItem('anonId', user?.anonymousId || '');
+  return user;
 };
 
 export const clearAuthSession = () => {
-  localStorage.removeItem('ephemeralIdentity');
+  window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(USER_KEY);
+  window.localStorage.removeItem('anonId');
 };
 
 export const updateStoredUser = (patch) => {
-  const current = getStoredIdentity() || getOrCreateIdentity();
+  const current = getStoredUser();
   if (!current) return null;
 
-  const next = saveIdentity({
-    userId: patch?.userId || patch?._id || current.userId,
-    displayName: patch?.displayName || patch?.anonymousId || current.displayName,
-  });
-
-  if (!next) return null;
-
-  return {
-    _id: next.userId,
-    anonymousId: next.displayName,
-    displayName: next.displayName,
-    isAnonymous: false,
-  };
+  const nextUser = { ...current, ...(patch || {}) };
+  window.localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+  return nextUser;
 };
+

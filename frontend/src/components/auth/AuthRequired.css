@@ -1,0 +1,37 @@
+.auth-required-page {
+  min-height: calc(100vh - var(--chrome-height));
+  display: grid;
+  place-items: center;
+  position: relative;
+  padding: var(--page-gutter);
+}
+
+.auth-required-preview {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background: linear-gradient(130deg, var(--surface-2), var(--surface-1));
+  filter: blur(2px) saturate(0.8);
+  pointer-events: none;
+}
+
+.auth-required-card {
+  position: relative;
+  width: min(100%, 42rem);
+  padding: clamp(1.4rem, 3vw, 2.25rem);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: 0.95rem;
+  text-align: center;
+}
+
+.auth-required-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.7rem;
+}
+
+.auth-required-footnote {
+  color: var(--text-muted);
+  font-size: var(--font-size-0);
+}

@@ -1,0 +1,36 @@
+.genre-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.genre-pill {
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.86rem;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.genre-pill:hover {
+  transform: translateY(-1px);
+  background: var(--surface-muted);
+}
+
+.genre-pill.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--text-primary);
+}
+
+.genre-pill:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+

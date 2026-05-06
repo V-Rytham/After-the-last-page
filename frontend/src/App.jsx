@@ -1,9 +1,12 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import SessionNavigationGuard from './components/session/SessionNavigationGuard';
+import PrivateRoute from './components/auth/PrivateRoute';
+import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
-import { getStoredUser, saveAuthSession } from './utils/auth';
+import api from './utils/api';
+import { clearAuthSession, getStoredToken, getStoredUser, saveAuthSession, updateStoredUser } from './utils/auth';
 import { getOrCreateIdentity } from './utils/identity';
 import { DEFAULT_UI_THEME, THEME_STORAGE_KEY, UI_THEMES } from './utils/uiThemes';
 import { applyThemeTokens } from './styles/theme';
@@ -22,7 +25,24 @@ const WizardMerch = lazy(() => import('./pages/WizardMerch'));
 const BookQuiz = lazy(() => import('./pages/BookQuiz'));
 const RequestBookPage = lazy(() => import('./pages/RequestBookPage'));
 
-const AppShell = ({ currentUser, uiTheme, onThemeChange }) => {
+const AuthPage = lazy(() => import('./pages/AuthPage'));
+const BooksLibrary = lazy(() => import('./pages/BooksLibrary'));
+const Library = lazy(() => import('./pages/Library'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+
+const buildGuestUser = () => {
+  const identity = getOrCreateIdentity();
+  if (!identity) return null;
+
+  return {
+    _id: identity.userId,
+    anonymousId: identity.displayName,
+    displayName: identity.displayName,
+    isAnonymous: true,
+  };
+};
+
+const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange, onAuthSuccess }) => {
   const location = useLocation();
   const hideNavbar = location.pathname.startsWith('/read/');
 
@@ -30,12 +50,17 @@ const AppShell = ({ currentUser, uiTheme, onThemeChange }) => {
     <div className="app-container">
       <SessionNavigationGuard />
       {!hideNavbar && (
-        <Navbar currentUser={currentUser} uiTheme={uiTheme} onThemeChange={onThemeChange} />
+        <Navbar currentUser={currentUser} onLogout={onLogout} uiTheme={uiTheme} onThemeChange={onThemeChange} />
       )}
       <main className={`main-content ${hideNavbar ? 'no-navbar' : 'with-navbar'}`}>
         <Suspense fallback={<div className="content-container"><p className="text-muted">Loading…</p></div>}>
           <Routes>
             <Route path="/" element={<LandingPage currentUser={currentUser} />} />
+            <Route path="/auth" element={<AuthPage currentUser={currentUser} onAuthSuccess={onAuthSuccess} />} />
+            <Route path="/desk" element={<PrivateRoute><BooksLibrary currentUser={currentUser} /></PrivateRoute>} />
+            <Route path="/library" element={<PrivateRoute><Library currentUser={currentUser} /></PrivateRoute>} />
+            <Route path="/profile" element={<PrivateRoute><ProfilePage currentUser={currentUser} onUserUpdate={onUserUpdate} /></PrivateRoute>} />
+
             <Route path="/meet" element={<MeetingAccessHub currentUser={currentUser} />} />
             <Route path="/threads" element={<ThreadAccessHub currentUser={currentUser} />} />
             <Route path="/request-book" element={<RequestBookPage />} />
@@ -46,10 +71,7 @@ const AppShell = ({ currentUser, uiTheme, onThemeChange }) => {
             <Route path="/meet/:bookId" element={<MeetingHub />} />
             <Route path="/thread/:bookId" element={<BookThread />} />
             <Route path="/merch" element={<WizardMerch />} />
-            <Route path="/desk" element={<Navigate to="/" replace />} />
-            <Route path="/library" element={<Navigate to="/" replace />} />
-            <Route path="/profile" element={<Navigate to="/" replace />} />
-            <Route path="/auth" element={<Navigate to="/" replace />} />
+
             <Route path="/settings" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -61,12 +83,9 @@ const AppShell = ({ currentUser, uiTheme, onThemeChange }) => {
 };
 
 const App = () => {
-  const [currentUser] = useState(() => {
-    const existing = getStoredUser();
-    if (existing) return existing;
-    const identity = getOrCreateIdentity();
-    return identity ? saveAuthSession(identity) : null;
-  });
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser() || buildGuestUser());
+  const [authLoading, setAuthLoading] = useState(() => Boolean(getStoredToken()));
+  const bootstrapStartedRef = useRef(false);
   const [uiTheme, setUiTheme] = useState(() => {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (storedTheme === 'midnight' || storedTheme === 'mocha') {
@@ -75,6 +94,32 @@ const App = () => {
 
     return VALID_THEMES.includes(storedTheme) ? storedTheme : DEFAULT_UI_THEME;
   });
+
+  useEffect(() => {
+    if (bootstrapStartedRef.current) return;
+    bootstrapStartedRef.current = true;
+
+    const token = getStoredToken();
+    if (!token) {
+      setAuthLoading(false);
+      return;
+    }
+
+    const bootstrap = async () => {
+      try {
+        const { data } = await api.get('/auth/me');
+        const user = saveAuthSession({ ...(data || {}), token }) || data;
+        setCurrentUser(user || buildGuestUser());
+      } catch {
+        clearAuthSession();
+        setCurrentUser(buildGuestUser());
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    bootstrap();
+  }, []);
 
   useEffect(() => {
     try {
@@ -101,17 +146,48 @@ const App = () => {
     applyThemeTokens(uiTheme);
   }, [uiTheme]);
 
+  const handleAuthSuccess = useCallback((user) => {
+    setCurrentUser(user || buildGuestUser());
+  }, []);
+
+  const handleUserUpdate = useCallback((userPatch) => {
+    const nextUser = updateStoredUser(userPatch) || userPatch;
+    setCurrentUser((prev) => ({ ...(prev || {}), ...(nextUser || {}) }));
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    clearAuthSession();
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // ignore
+    }
+    setCurrentUser(buildGuestUser());
+  }, []);
+
+  const authContextValue = useMemo(() => ({
+    currentUser,
+    setCurrentUser,
+    authLoading,
+  }), [authLoading, currentUser]);
+
   return (
-    <SocketProvider currentUser={currentUser}>
-      <Router>
-        <AppShell
-          currentUser={currentUser}
-          uiTheme={uiTheme}
-          onThemeChange={setUiTheme}
-        />
-      </Router>
-    </SocketProvider>
+    <AuthProvider value={authContextValue}>
+      <SocketProvider currentUser={currentUser}>
+        <Router>
+          <AppShell
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            onUserUpdate={handleUserUpdate}
+            uiTheme={uiTheme}
+            onThemeChange={setUiTheme}
+            onAuthSuccess={handleAuthSuccess}
+          />
+        </Router>
+      </SocketProvider>
+    </AuthProvider>
   );
 };
 
 export default App;
+

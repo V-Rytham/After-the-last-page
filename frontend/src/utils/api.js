@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { getApiBaseUrl } from './serviceUrls';
 import { getOrCreateIdentity } from './identity';
+import { getStoredToken } from './auth';
 
 const baseURL = getApiBaseUrl();
 let rateLimitedUntil = 0;
@@ -39,6 +40,11 @@ api.interceptors.request.use(
   async (config) => {
     if (Date.now() < rateLimitedUntil) {
       await sleep(rateLimitedUntil - Date.now());
+    }
+
+    const token = getStoredToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
 
     const identity = getOrCreateIdentity();
