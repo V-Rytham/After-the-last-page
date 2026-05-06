@@ -22,8 +22,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const searchClient = createMicroserviceClient({
   envBaseUrlKey: 'SEARCH_SERVICE_URL',
   envTimeoutMsKey: 'SEARCH_SERVICE_TIMEOUT_MS',
-  envEnabledKey: 'SEARCH_SERVICE_ENABLED',
-  fallbackEnabled: true,
+  envEnabledKey: 'SEARCH_SERVICE_ENABLED'
 });
 
 const toStableBookShape = (book) => {
@@ -87,65 +86,21 @@ export class BooksService {
     const cached = this.searchCache.get(q);
     if (cached) return { results: cached };
 
-    const localResults = this.repository.getCatalogEntries()
-      .filter((book) => {
-        const idString = String(book?.gutenbergId || '');
-        const title = String(book?.title || '').toLowerCase();
-        const author = String(book?.author || '').toLowerCase();
-        return title.includes(q) || author.includes(q) || idString === q;
-      })
-      .slice(0, 30)
-      .map((book) => toStableBookShape(book))
-      .filter(Boolean)
-      .map((book) => ({
-        ...book,
-        source: this.repository.getSourceNames().SOURCE_GUTENBERG,
-        sourceId: String(book.gutenbergId),
-        coverImage: `https://www.gutenberg.org/cache/epub/${book.gutenbergId}/pg${book.gutenbergId}.cover.medium.jpg`,
-      }));
-
-    let aggregated = [];
-    let remoteSearchFailed = false;
-    if (searchClient.isEnabled()) {
-      try {
-        log('[BOOKS_SEARCH] Delegating query to search microservice', { q });
-        const payload = await searchClient.get(`/api/books/search?q=${encodeURIComponent(q)}`);
-        aggregated = Array.isArray(payload?.results) ? payload.results : [];
-        log('[BOOKS_SEARCH] Search microservice response received', { q, results: aggregated.length });
-      } catch (error) {
-        if (!error?.allowLocalFallback) throw error;
-        remoteSearchFailed = true;
-        log('[BOOKS_SEARCH] Search microservice failed; using local fallback', { q, reason: error?.message || 'unknown' });
-      }
+    if (!searchClient.isEnabled()) {
+      const error = new Error('Search service is disabled or not configured.');
+      error.statusCode = 503;
+      throw error;
     }
 
-    if (!searchClient.isEnabled() || remoteSearchFailed) {
-      aggregated = await this.repository.runAggregatedSearch(q);
-      log('[BOOKS_SEARCH] Local aggregated search completed', { q, results: aggregated.length });
-    }
-    if (aggregated.length === 0 && /^\d+$/.test(q)) {
-      try {
-        const remoteBook = await this.fetchMetadataSingleFlight(Number(q));
-        if (remoteBook) {
-          aggregated = [{
-            ...remoteBook,
-            source: this.repository.getSourceNames().SOURCE_GUTENBERG,
-            sourceId: String(remoteBook.gutenbergId),
-            coverImage: `https://www.gutenberg.org/cache/epub/${remoteBook.gutenbergId}/pg${remoteBook.gutenbergId}.cover.medium.jpg`,
-          }];
-        }
-      } catch (error) {
-        if (![400, 404].includes(Number(error?.statusCode))) throw error;
-      }
-    }
+    log('[BOOKS_SEARCH] Delegating query to search microservice', { q });
+    const payload = await searchClient.get(`/api/books/search?q=${encodeURIComponent(q)}`);
+    const aggregated = Array.isArray(payload?.results) ? payload.results : [];
+    log('[BOOKS_SEARCH] Search microservice response received', { q, results: aggregated.length });
 
-    const results = Array.from(
-      new Map([...localResults, ...aggregated].map((book) => [String(book?.id || `${book?.source}:${book?.sourceId}`), book])).values(),
-    );
-
-    this.searchCache.set(q, results);
-    return { results };
+    this.searchCache.set(q, aggregated);
+    return { results: aggregated };
   }
+
 
   async getBookById({ id }) {
     if (isDegradedMode()) {
