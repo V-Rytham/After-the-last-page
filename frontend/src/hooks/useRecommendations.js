@@ -24,7 +24,11 @@ export default function useRecommendations(selectedGenres) {
         Promise.resolve().then(() => setState({ books, personalized: Boolean(data?.personalized), loading: false, error: '' }));
       })
       .catch((err) => {
-        if (err?.name === 'AbortError') return;
+        const lowered = String(err?.message || '').toLowerCase();
+        if (err?.name === 'AbortError' || err?.name === 'CanceledError' || lowered.includes('canceled') || lowered.includes('cancelled')) {
+          Promise.resolve().then(() => setState((prev) => ({ ...prev, loading: false })));
+          return;
+        }
         Promise.resolve().then(() => setState({ books: [], personalized: false, loading: false, error: err?.message || 'Failed to fetch recommendations.' }));
       });
 

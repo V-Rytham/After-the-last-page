@@ -7,7 +7,7 @@ export default function PrivateRoute({ children }) {
   const { authLoading, currentUser } = React.useContext(AuthContext) || {};
 
   if (authLoading) {
-    return <div className="loading">Loading…</div>;
+    return <div className="route-skeleton route-skeleton--auth" aria-hidden="true" />;
   }
 
   if (!currentUser || currentUser.isAnonymous) {

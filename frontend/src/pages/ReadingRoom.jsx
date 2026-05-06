@@ -807,7 +807,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
     return () => window.clearTimeout(timeout);
   }, [pageTurnDirection]);
 
-  if (loading) return <div className="text-center p-10 mt-20">{isGutenbergRoute ? 'Fetching book from Gutenberg...' : 'Loading...'}</div>;
+  if (loading) return <div className="reader-loading-shell" aria-hidden="true" />;
   if (!book) return <div className="text-center p-10 mt-20">Book not found.</div>;
   if (contentError) return <div className="text-center p-10 mt-20">{contentErrorMessage}</div>;
   if (!activeChapter) return <div className="text-center p-10 mt-20">Book content not available.</div>;
@@ -869,7 +869,7 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
       </div>
       {isPartialContent && (
         <div className="text-center p-2">
-          <p>Loading remaining chapters...</p>
+          <p>Fetching remaining chapters…</p>
           <p className="text-sm opacity-80">
             {estimatedChapters ? `Estimated total chapters: ${estimatedChapters}.` : 'Additional chapters are available.'}
           </p>

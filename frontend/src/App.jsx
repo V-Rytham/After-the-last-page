@@ -56,7 +56,7 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
         <Navbar currentUser={currentUser} onLogout={onLogout} uiTheme={uiTheme} onThemeChange={onThemeChange} />
       )}
       <main className={`main-content ${hideNavbar ? 'no-navbar' : 'with-navbar'}`}>
-        <Suspense fallback={<div className="content-container"><p className="text-muted">Loading…</p></div>}>
+        <Suspense fallback={<div className="route-skeleton" aria-hidden="true" />}>
           <Routes>
             <Route path="/" element={<LandingPage currentUser={currentUser} />} />
             <Route path="/auth" element={<AuthPage currentUser={currentUser} onAuthSuccess={onAuthSuccess} />} />

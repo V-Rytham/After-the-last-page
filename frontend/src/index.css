@@ -167,58 +167,80 @@ html[data-theme='sepia'] {
 }
 
 html[data-theme='dark'] {
-  --bg-dark: #07080c;
-  --text-primary-dark: #f3f4f6;
-  --text-secondary-dark: rgba(243, 244, 246, 0.78);
-  --accent-dark: #7c8cff;
-  --card-bg-dark: #0e1017;
+  --bg-dark: #0b1020;
+  --text-primary-dark: #e9eefb;
+  --text-secondary-dark: rgba(212, 222, 242, 0.84);
+  --accent-dark: #8ea2ff;
+  --card-bg-dark: #12182c;
   --card-bg: var(--card-bg-dark);
-  --btn-bg: rgba(124, 140, 255, 0.18);
-  --accent-contrast: #0b0d12;
-  --btn-text: #f3f4f6;
-  --btn-hover: rgba(124, 140, 255, 0.26);
-  --accent-primary: #7c8cff;
-  --book-card-overlay: rgba(6, 8, 12, 0.78);
-  --book-card-gradient: linear-gradient(180deg, rgba(124, 140, 255, 0.14), rgba(6, 8, 12, 0.5));
-  --book-card-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 26px 60px rgba(0, 0, 0, 0.36);
+  --btn-bg: rgba(142, 162, 255, 0.2);
+  --accent-contrast: #0b1020;
+  --btn-text: #eff3ff;
+  --btn-hover: rgba(142, 162, 255, 0.32);
+  --accent-primary: #8ea2ff;
+  --book-card-overlay: rgba(8, 12, 24, 0.8);
+  --book-card-gradient: linear-gradient(180deg, rgba(142, 162, 255, 0.16), rgba(8, 12, 24, 0.54));
+  --book-card-shadow: 0 18px 44px rgba(1, 5, 16, 0.58), 0 30px 64px rgba(1, 5, 16, 0.42);
 
   --page-bg: var(--bg-dark);
-  --page-bg-alt: #0b0d13;
-  --nav-bg: rgba(7, 8, 12, 0.88);
+  --page-bg-alt: #10172c;
+  --nav-bg: rgba(11, 16, 32, 0.84);
   --surface-1: var(--card-bg-dark);
-  --surface-2: #141829;
-  --surface-2-elevated: #171c2e;
-  --surface-muted: rgba(243, 244, 246, 0.06);
+  --surface-2: #19213a;
+  --surface-2-elevated: #1c2743;
+  --surface-muted: rgba(193, 206, 236, 0.08);
   --text-primary: var(--text-primary-dark);
   --text-secondary: var(--text-secondary-dark);
-  --text-muted: rgba(243, 244, 246, 0.58);
-  --border-soft: rgba(243, 244, 246, 0.12);
-  --border-strong: rgba(243, 244, 246, 0.2);
+  --text-muted: rgba(173, 186, 214, 0.72);
+  --border-soft: rgba(174, 190, 223, 0.2);
+  --border-strong: rgba(174, 190, 223, 0.32);
   --accent-warm: #c7a86e;
   --accent: var(--accent-dark);
-  --accent-ink: #eef2ff;
-  --accent-soft: rgba(124, 140, 255, 0.16);
-  --accent-soft-strong: rgba(124, 140, 255, 0.26);
-  --accent-border: rgba(124, 140, 255, 0.42);
+  --accent-ink: #edf2ff;
+  --accent-soft: rgba(142, 162, 255, 0.2);
+  --accent-soft-strong: rgba(142, 162, 255, 0.3);
+  --accent-border: rgba(142, 162, 255, 0.4);
   --success-soft: rgba(34, 197, 94, 0.18);
   --warning-soft: rgba(251, 191, 36, 0.18);
   --danger-soft: rgba(239, 68, 68, 0.18);
   --danger-ink: #fecaca;
   --danger-border: rgba(239, 68, 68, 0.38);
-  --selection: rgba(124, 140, 255, 0.28);
-  --shadow-line: 0 1px 0 rgba(243, 244, 246, 0.05);
-  --shadow-panel: 0 22px 54px rgba(0, 0, 0, 0.52);
+  --selection: rgba(142, 162, 255, 0.32);
+  --shadow-line: 0 1px 0 rgba(203, 214, 242, 0.08);
+  --shadow-panel: 0 26px 58px rgba(1, 5, 16, 0.56);
 
-  --nav-capsule-bg: rgba(14, 16, 23, 0.78);
+  --nav-capsule-bg: rgba(18, 24, 44, 0.78);
   --nav-capsule-border: var(--border-soft);
-  --nav-capsule-shadow: 0 16px 40px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(243, 244, 246, 0.05) inset;
+  --nav-capsule-shadow: 0 18px 44px rgba(1, 5, 16, 0.42), 0 1px 0 rgba(203, 214, 242, 0.06) inset;
   --nav-group-bg: var(--surface-muted);
-  --nav-group-border: rgba(124, 140, 255, 0.2);
-  --nav-link-hover-bg: rgba(124, 140, 255, 0.14);
-  --nav-link-active-bg: rgba(124, 140, 255, 0.2);
-  --nav-link-active-border: rgba(124, 140, 255, 0.32);
-  --text-base: #9ca3af;
-  --text-highlight: #ffffff;
+  --nav-group-border: rgba(142, 162, 255, 0.24);
+  --nav-link-hover-bg: rgba(142, 162, 255, 0.16);
+  --nav-link-active-bg: rgba(142, 162, 255, 0.24);
+  --nav-link-active-border: rgba(142, 162, 255, 0.38);
+  --text-base: #b3bfd8;
+  --text-highlight: #f7f9ff;
+}
+
+.route-skeleton,
+.reader-loading-shell {
+  position: relative;
+  width: min(100%, var(--content-max-width));
+  min-height: 45vh;
+  margin: 1.5rem auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: linear-gradient(120deg, var(--surface-1), var(--surface-2), var(--surface-1));
+  background-size: 220% 100%;
+  animation: routeShimmer 1.1s ease infinite;
+}
+
+.route-skeleton--auth {
+  min-height: 60vh;
+}
+
+@keyframes routeShimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
 }
 
 html[data-theme='dark'] body::before {
