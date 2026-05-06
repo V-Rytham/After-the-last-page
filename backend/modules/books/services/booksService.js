@@ -2,6 +2,7 @@ import { parseStrictGutenbergId, readGutenbergBookStateless } from '../../../uti
 import { isDegradedMode } from '../../../utils/degradedMode.js';
 import { appConfig } from '../../../shared/config/appConfig.js';
 import { MemoryCache } from '../../../shared/cache/memoryCache.js';
+import { createMicroserviceClient } from '../../../services/microserviceProxy.js';
 import {
   buildReadBookBySourceDto,
   buildReaderOptionsDto,
@@ -16,6 +17,13 @@ const fallbackBooks = [
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const searchClient = createMicroserviceClient({
+  envBaseUrlKey: 'SEARCH_SERVICE_URL',
+  envTimeoutMsKey: 'SEARCH_SERVICE_TIMEOUT_MS',
+  envEnabledKey: 'SEARCH_SERVICE_ENABLED',
+  fallbackEnabled: true,
+});
 
 const toStableBookShape = (book) => {
   const gutenbergId = Number(book?.gutenbergId);
@@ -95,7 +103,19 @@ export class BooksService {
         coverImage: `https://www.gutenberg.org/cache/epub/${book.gutenbergId}/pg${book.gutenbergId}.cover.medium.jpg`,
       }));
 
-    let aggregated = await this.repository.runAggregatedSearch(q);
+    let aggregated = [];
+    if (searchClient.isEnabled()) {
+      try {
+        const payload = await searchClient.get(`/api/books/search?q=${encodeURIComponent(q)}`);
+        aggregated = Array.isArray(payload?.results) ? payload.results : [];
+      } catch (error) {
+        if (!error?.allowLocalFallback) throw error;
+      }
+    }
+
+    if (!aggregated.length) {
+      aggregated = await this.repository.runAggregatedSearch(q);
+    }
     if (aggregated.length === 0 && /^\d+$/.test(q)) {
       try {
         const remoteBook = await this.fetchMetadataSingleFlight(Number(q));
