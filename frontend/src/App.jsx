@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
+import AppIntro from './components/AppIntro';
 import SessionNavigationGuard from './components/session/SessionNavigationGuard';
 import PrivateRoute from './components/auth/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
@@ -45,9 +46,11 @@ const buildGuestUser = () => {
 const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange, onAuthSuccess }) => {
   const location = useLocation();
   const hideNavbar = location.pathname.startsWith('/read/');
+  const showHomeIntro = location.pathname === '/';
 
   return (
     <div className="app-container">
+      <AppIntro enabled={showHomeIntro} />
       <SessionNavigationGuard />
       {!hideNavbar && (
         <Navbar currentUser={currentUser} onLogout={onLogout} uiTheme={uiTheme} onThemeChange={onThemeChange} />

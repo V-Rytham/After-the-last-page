@@ -96,6 +96,10 @@ export default function Library({ currentUser }) {
   const visibleBooks = showSearchResults ? searchState.books : curatedBooks;
   const loading = showSearchResults ? searchState.loading : recLoading;
   const error = showSearchResults ? searchState.error : recError;
+  const isTypingSearch = Boolean(normalizeQuery(search)) && normalizeQuery(search) !== normalizedSearch;
+  const searchHeading = !showSearchResults
+    ? 'Search'
+    : (loading || isTypingSearch ? 'Searching' : 'Search Results');
 
   return (
     <main className="library-page content-container">
@@ -116,7 +120,14 @@ export default function Library({ currentUser }) {
       ) : null}
 
       <header className="library-page-header">
-        <h1>{showSearchResults ? 'Search' : 'Curated For You'}</h1>
+        <h1 className="library-heading">
+          {showSearchResults ? (
+            <span className={`library-heading-state${loading || isTypingSearch ? ' is-searching' : ' is-results'}`}>
+              {searchHeading}
+              {(loading || isTypingSearch) ? <span className="library-search-dots" aria-hidden="true" /> : null}
+            </span>
+          ) : searchHeading}
+        </h1>
         <SearchBar
           value={search}
           onChange={setSearch}

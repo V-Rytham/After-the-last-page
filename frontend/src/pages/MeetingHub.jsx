@@ -50,6 +50,7 @@ const MeetingHub = () => {
   const [searchHint, setSearchHint] = useState('');
   const [bookFriendSessionId, setBookFriendSessionId] = useState(null);
   const [bookFriendStarting, setBookFriendStarting] = useState(false);
+  const [bookFriendThinking, setBookFriendThinking] = useState(false);
   const [searchSeconds, setSearchSeconds] = useState(0);
   const [searchingDots, setSearchingDots] = useState('.');
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
@@ -572,6 +573,7 @@ const MeetingHub = () => {
         },
       ]);
       setChatInput('');
+      setBookFriendThinking(false);
       setPhase('bookfriend');
     } catch (error) {
       const statusCode = Number(error?.response?.status || 0);
@@ -595,6 +597,7 @@ const MeetingHub = () => {
     if (!trimmed || !bookFriendSessionId) return;
     setMessages((prev) => [...prev, { text: trimmed, sender: 'me', timestamp: new Date() }]);
     setChatInput('');
+    setBookFriendThinking(true);
     try {
       const payload = { session_id: bookFriendSessionId, message: trimmed };
       log('Payload:', payload);
@@ -602,6 +605,8 @@ const MeetingHub = () => {
       setMessages((prev) => [...prev, { text: data.response, sender: 'bookfriend', timestamp: new Date() }]);
     } catch {
       setMessages((prev) => [...prev, { text: 'Sorry, I lost the thread for a moment. Could you try that again?', sender: 'bookfriend', timestamp: new Date() }]);
+    } finally {
+      setBookFriendThinking(false);
     }
   };
 
@@ -647,6 +652,7 @@ const MeetingHub = () => {
         const previous = messages[i - 1];
         const next = messages[i + 1];
         const isMine = m.sender === 'me';
+        const isBookFriend = m.sender === 'bookfriend';
         const isFirstInGroup = !previous || previous.sender !== m.sender;
         const isLastInGroup = !next || next.sender !== m.sender;
         return (
@@ -654,7 +660,11 @@ const MeetingHub = () => {
             key={m?.id || `${m?.sender || 'user'}-${m?.timestamp || i}-${i}`}
             className={`message ${isMine ? 'sent' : 'received'} ${isFirstInGroup ? 'group-start' : 'group-mid'} ${isLastInGroup ? 'group-end' : ''}`}
           >
-            {!isMine && isFirstInGroup && <div className="message-avatar" aria-hidden="true"><User size={14} /></div>}
+            {!isMine && isFirstInGroup && (
+              <div className={`message-avatar${isBookFriend ? ' message-avatar--bookfriend' : ''}`} aria-hidden="true">
+                {isBookFriend ? <Bot size={14} /> : <User size={14} />}
+              </div>
+            )}
             <div className="message-content">
               <div className="msg-bubble">{m.text}</div>
               {isLastInGroup && <span className="msg-time">{getMessageTimeLabel(m.timestamp)}</span>}
@@ -662,6 +672,19 @@ const MeetingHub = () => {
           </div>
         );
       })}
+      {bookFriendThinking && (
+        <div className="message received group-start message--thinking" role="status" aria-live="polite">
+          <div className="message-avatar message-avatar--bookfriend" aria-hidden="true"><Bot size={14} /></div>
+          <div className="message-content">
+            <div className="msg-bubble msg-bubble--thinking">
+              <span className="thinking-dot" />
+              <span className="thinking-dot" />
+              <span className="thinking-dot" />
+              <span className="thinking-label">BookFriend is reflecting</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -745,7 +768,7 @@ const MeetingHub = () => {
       {phase === 'bookfriend' && (
         <div className="room-container animate-fade-in">
           <section className="room-main glass-panel">
-            <header className="room-header room-header--sticky">
+            <header className="room-header room-header--sticky room-header--bookfriend">
               <div className="partner-info">
                 <div className="wizard-avatar" aria-hidden="true">
                   <Bot size={18} />
@@ -780,10 +803,10 @@ const MeetingHub = () => {
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(event) => handleChatKeyDown(event, () => sendBookFriendMessage(event))}
                   placeholder="Share your thought..."
-                  disabled={!bookFriendSessionId}
+                  disabled={!bookFriendSessionId || bookFriendThinking}
                   rows={1}
                 />
-                <button type="submit" className="send-btn" aria-label="Send" disabled={!bookFriendSessionId || !chatInput.trim()}>
+                <button type="submit" className="send-btn" aria-label="Send" disabled={!bookFriendSessionId || !chatInput.trim() || bookFriendThinking}>
                   <Send size={16} />
                 </button>
               </form>
