@@ -1,9 +1,17 @@
 import { buildRecommendations } from '../services/recommendationsService.js';
+import { createMicroserviceClient } from '../services/microserviceProxy.js';
 import {
   invalidateRecommendationCacheV2,
   mergeAndRankRecommendations,
   trackRecommendationClickV2,
 } from '../services/recommendationEngineV2.js';
+
+const recommendationsClient = createMicroserviceClient({
+  envBaseUrlKey: 'RECOMMENDATIONS_SERVICE_URL',
+  envTimeoutMsKey: 'RECOMMENDATIONS_SERVICE_TIMEOUT_MS',
+  envEnabledKey: 'RECOMMENDATIONS_SERVICE_ENABLED',
+  fallbackEnabled: true,
+});
 
 const normalizeGenre = (value) => String(value || '').trim().toLowerCase();
 
@@ -14,6 +22,15 @@ export const postRecommendations = async (req, res) => {
 
     if (normalized.length === 0) {
       return res.status(400).json({ message: 'genres must be a non-empty array.' });
+    }
+
+    if (recommendationsClient.isEnabled()) {
+      try {
+        const delegated = await recommendationsClient.post('/api/recommendations', { genres: normalized });
+        return res.json(delegated);
+      } catch (error) {
+        console.warn('[RECOMMENDATIONS] Remote service unavailable, falling back locally:', error?.message || error);
+      }
     }
 
     const result = await buildRecommendations({ genres: normalized });
