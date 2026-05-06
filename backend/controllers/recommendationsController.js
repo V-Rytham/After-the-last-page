@@ -1,10 +1,12 @@
 import { createMicroserviceClient } from '../services/microserviceProxy.js';
+import { buildRecommendations } from '../services/recommendationsService.js';
+import { mergeAndRankRecommendations, trackRecommendationClickV2 } from '../services/recommendationEngineV2.js';
 
 const recommendationsClient = createMicroserviceClient({
   envBaseUrlKey: 'RECOMMENDATIONS_SERVICE_URL',
   envTimeoutMsKey: 'RECOMMENDATIONS_SERVICE_TIMEOUT_MS',
   envEnabledKey: 'RECOMMENDATIONS_SERVICE_ENABLED',
-  fallbackEnabled: false,
+  fallbackEnabled: true,
 });
 
 const normalizeGenre = (value) => String(value || '').trim().toLowerCase();
@@ -19,15 +21,21 @@ export const postRecommendations = async (req, res) => {
     }
 
     if (!recommendationsClient.isEnabled()) {
-      return res.status(503).json({
-        message: 'Recommendations service unavailable.',
-        code: 'RECOMMENDATIONS_SERVICE_DISABLED',
-      });
+      const local = await buildRecommendations({ genres: normalized });
+      return res.json(local);
     }
 
     const delegated = await recommendationsClient.post('/api/recommendations', { genres: normalized });
     return res.json(delegated);
   } catch (error) {
+    if (error?.allowLocalFallback) {
+      try {
+        const local = await buildRecommendations({ genres: req.body?.genres || [] });
+        return res.json(local);
+      } catch (localError) {
+        error = localError;
+      }
+    }
     const statusCode = Number.isFinite(error?.statusCode) ? Number(error.statusCode) : 503;
     return res.status(statusCode).json({
       message: String(error?.message || 'Failed to fetch recommendations.'),
@@ -40,10 +48,8 @@ export const postRecommendations = async (req, res) => {
 export const getRecommendationsForYou = async (req, res) => {
   try {
     if (!recommendationsClient.isEnabled()) {
-      return res.status(503).json({
-        message: 'Recommendations service unavailable.',
-        code: 'RECOMMENDATIONS_SERVICE_DISABLED',
-      });
+      const local = await mergeAndRankRecommendations(req.user?.id);
+      return res.json(local);
     }
 
     const response = await recommendationsClient.get('/api/recommendations/for-you', {
@@ -52,6 +58,14 @@ export const getRecommendationsForYou = async (req, res) => {
     });
     return res.json(response);
   } catch (error) {
+    if (error?.allowLocalFallback) {
+      try {
+        const local = await mergeAndRankRecommendations(req.user?.id);
+        return res.json(local);
+      } catch (localError) {
+        error = localError;
+      }
+    }
     const statusCode = Number.isFinite(error?.statusCode) ? Number(error.statusCode) : 503;
     return res.status(statusCode).json({
       message: String(error?.message || 'Failed to fetch personalized recommendations.'),
@@ -64,10 +78,8 @@ export const getRecommendationsForYou = async (req, res) => {
 export const postRecommendationClick = async (req, res) => {
   try {
     if (!recommendationsClient.isEnabled()) {
-      return res.status(503).json({
-        message: 'Recommendations service unavailable.',
-        code: 'RECOMMENDATIONS_SERVICE_DISABLED',
-      });
+      trackRecommendationClickV2({ userId: req.user?.id, bookId: req.body?.bookId });
+      return res.status(204).send();
     }
 
     await recommendationsClient.post('/api/recommendations/for-you/click', req.body || {}, {
@@ -75,6 +87,10 @@ export const postRecommendationClick = async (req, res) => {
     });
     return res.status(204).send();
   } catch (error) {
+    if (error?.allowLocalFallback) {
+      trackRecommendationClickV2({ userId: req.user?.id, bookId: req.body?.bookId });
+      return res.status(204).send();
+    }
     const statusCode = Number.isFinite(error?.statusCode) ? Number(error.statusCode) : 503;
     return res.status(statusCode).json({
       message: String(error?.message || 'Failed to track recommendation click.'),
