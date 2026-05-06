@@ -598,3 +598,168 @@ button:disabled {
   border-color: var(--intent-btn-hover);
   color: var(--intent-btn-text);
 }
+
+/* Unified premium search fields: keep native inputs visually merged with their parent surface. */
+.search-input-wrap input,
+.meeting-access-search input,
+.thread-access-search input,
+.thread-search-input-wrap input,
+.desk-search input,
+input[type='search'] {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.search-input-wrap input::-webkit-search-decoration,
+.search-input-wrap input::-webkit-search-cancel-button,
+.meeting-access-search input::-webkit-search-decoration,
+.meeting-access-search input::-webkit-search-cancel-button,
+.thread-access-search input::-webkit-search-decoration,
+.thread-access-search input::-webkit-search-cancel-button,
+.thread-search-input-wrap input::-webkit-search-decoration,
+.thread-search-input-wrap input::-webkit-search-cancel-button,
+.desk-search input::-webkit-search-decoration,
+.desk-search input::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-decoration,
+input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-input-wrap input:-webkit-autofill,
+.meeting-access-search input:-webkit-autofill,
+.thread-access-search input:-webkit-autofill,
+.thread-search-input-wrap input:-webkit-autofill,
+.desk-search input:-webkit-autofill,
+input[type='search']:-webkit-autofill {
+  -webkit-text-fill-color: var(--text-primary);
+  caret-color: var(--accent);
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
+.app-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1rem;
+  min-height: 100dvh;
+  color: var(--text-primary);
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--accent-soft) 42%, transparent) 0 16rem, transparent 27rem),
+    linear-gradient(135deg, var(--page-bg), color-mix(in srgb, var(--page-bg-alt) 82%, var(--surface-1)));
+  overflow: hidden;
+  animation: appIntroIn 260ms ease-out both;
+}
+
+.app-intro.is-leaving {
+  pointer-events: none;
+  animation: appIntroOut 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.app-intro__ambient {
+  position: absolute;
+  width: min(64vw, 34rem);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent-soft) 55%, transparent), transparent 68%);
+  filter: blur(18px);
+  opacity: 0.78;
+  animation: appIntroBreathe 1.8s ease-in-out both;
+}
+
+.app-intro__mark {
+  position: relative;
+  width: 7.2rem;
+  height: 5.4rem;
+  filter: drop-shadow(0 18px 36px color-mix(in srgb, var(--accent) 20%, transparent));
+}
+
+.app-intro__spine,
+.app-intro__page,
+.app-intro__fragment {
+  position: absolute;
+  display: block;
+  border: 1px solid color-mix(in srgb, var(--accent-border) 72%, var(--border-soft));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--surface-1) 88%, white), color-mix(in srgb, var(--accent-soft) 36%, var(--surface-2)));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 42%, transparent);
+}
+
+.app-intro__spine {
+  left: 50%;
+  top: 0.56rem;
+  bottom: 0.5rem;
+  width: 0.18rem;
+  border-radius: 999px;
+  transform: translateX(-50%) scaleY(0.25);
+  transform-origin: center;
+  opacity: 0;
+  animation: appIntroSpine 860ms cubic-bezier(0.16, 1, 0.3, 1) 380ms forwards;
+}
+
+.app-intro__page {
+  top: 0.82rem;
+  width: 3.15rem;
+  height: 4.15rem;
+  opacity: 0;
+  transform-origin: bottom center;
+  animation: appIntroPage 880ms cubic-bezier(0.16, 1, 0.3, 1) 520ms forwards;
+}
+
+.app-intro__page--left {
+  right: 50%;
+  border-radius: 1.1rem 0.28rem 0.5rem 1.1rem;
+  transform: translate(-1.9rem, 0.55rem) rotate(-13deg) scale(0.72);
+}
+
+.app-intro__page--right {
+  left: 50%;
+  border-radius: 0.28rem 1.1rem 1.1rem 0.5rem;
+  transform: translate(1.9rem, 0.55rem) rotate(13deg) scale(0.72);
+  animation-name: appIntroPageRight;
+}
+
+.app-intro__fragment {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 0.22rem;
+  opacity: 0;
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--surface-1));
+  animation: appIntroFragment 920ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.app-intro__fragment--one { left: 0.8rem; top: 0.2rem; --x: 2.1rem; --y: 1.1rem; animation-delay: 90ms; }
+.app-intro__fragment--two { right: 0.9rem; top: 0.08rem; --x: -2rem; --y: 1.15rem; animation-delay: 150ms; }
+.app-intro__fragment--three { left: 1.35rem; bottom: 0.2rem; --x: 1.65rem; --y: -1.15rem; animation-delay: 220ms; }
+.app-intro__fragment--four { right: 1.2rem; bottom: 0.38rem; --x: -1.55rem; --y: -1rem; animation-delay: 280ms; }
+
+.app-intro__wordmark {
+  position: relative;
+  margin: 0;
+  font-family: var(--font-reading);
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  letter-spacing: 0.08em;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: appIntroWord 620ms ease-out 820ms forwards;
+}
+
+@keyframes appIntroIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes appIntroOut { to { opacity: 0; transform: scale(1.012); filter: blur(3px); } }
+@keyframes appIntroBreathe { 0% { transform: scale(0.86); opacity: 0.48; } 100% { transform: scale(1); opacity: 0.78; } }
+@keyframes appIntroFragment { 0% { opacity: 0; transform: translate(calc(var(--x) * -1), calc(var(--y) * -1)) scale(0.72) rotate(18deg); } 42% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(0.45) rotate(0deg); } }
+@keyframes appIntroSpine { to { opacity: 1; transform: translateX(-50%) scaleY(1); } }
+@keyframes appIntroPage { to { opacity: 1; transform: translate(-0.06rem, 0) rotate(-2deg) scale(1); } }
+@keyframes appIntroPageRight { to { opacity: 1; transform: translate(0.06rem, 0) rotate(2deg) scale(1); } }
+@keyframes appIntroWord { to { opacity: 0.82; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-intro { display: none; }
+}

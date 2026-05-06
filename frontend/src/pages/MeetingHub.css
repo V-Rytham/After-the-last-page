@@ -939,3 +939,157 @@ html[data-theme='dark'] .meeting-tertiary-action {
   flex-wrap: wrap;
   margin-top: 0.35rem;
 }
+
+.meeting-hub--bookfriend .room-container {
+  width: min(100%, 58rem);
+}
+
+.meeting-hub--bookfriend .room-main {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 58%, transparent);
+  background:
+    radial-gradient(circle at 22% 0%, color-mix(in srgb, var(--accent-soft) 26%, transparent), transparent 30rem),
+    color-mix(in srgb, var(--surface-1) 82%, var(--page-bg-alt));
+  box-shadow: 0 22px 50px rgba(10, 14, 25, 0.14);
+}
+
+.room-header--bookfriend {
+  border-bottom: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 88%, transparent), color-mix(in srgb, var(--surface-1) 62%, transparent));
+}
+
+.meeting-hub--bookfriend .chat-messages {
+  gap: 0.16rem;
+  padding: clamp(1rem, 2.5vw, 1.65rem) clamp(0.95rem, 2.7vw, 1.75rem) 1.35rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 28%, transparent), transparent 7rem),
+    color-mix(in srgb, var(--page-bg-alt) 54%, transparent);
+  scroll-behavior: smooth;
+}
+
+.meeting-hub--bookfriend .message-content {
+  max-width: min(72%, 35rem);
+}
+
+.meeting-hub--bookfriend .msg-bubble {
+  padding: 0.66rem 0.88rem;
+  border-radius: 1.08rem 1.08rem 1.08rem 0.42rem;
+  font-size: 0.94rem;
+  line-height: 1.62;
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
+  border-color: color-mix(in srgb, var(--border-soft) 48%, transparent);
+  color: var(--text-primary);
+  box-shadow: 0 8px 22px rgba(10, 14, 25, 0.055);
+}
+
+.meeting-hub--bookfriend .sent .msg-bubble {
+  border-radius: 1.08rem 1.08rem 0.42rem 1.08rem;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 62%, var(--surface-1)), color-mix(in srgb, var(--accent-soft) 36%, var(--surface-2)));
+  border-color: color-mix(in srgb, var(--accent-border) 58%, transparent);
+  color: var(--text-primary);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent-soft) 22%, transparent);
+}
+
+.meeting-hub--bookfriend .message.group-start {
+  margin-top: 0.78rem;
+}
+
+.meeting-hub--bookfriend .message.group-mid {
+  margin-top: 0.06rem;
+}
+
+.message-avatar--bookfriend,
+.wizard-avatar {
+  background:
+    radial-gradient(circle at 35% 24%, color-mix(in srgb, white 28%, transparent), transparent 38%),
+    linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 92%, var(--surface-1)), color-mix(in srgb, var(--accent-border) 42%, var(--surface-2)));
+  color: var(--accent-ink);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--accent-soft) 28%, transparent);
+}
+
+.message--thinking {
+  opacity: 1;
+}
+
+.msg-bubble--thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  color: var(--text-muted) !important;
+  min-height: 2.35rem;
+}
+
+.thinking-dot {
+  width: 0.34rem;
+  height: 0.34rem;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.42;
+  animation: bookfriendThinking 1.35s ease-in-out infinite;
+}
+
+.thinking-dot:nth-child(2) { animation-delay: 140ms; }
+.thinking-dot:nth-child(3) { animation-delay: 280ms; }
+
+.thinking-label {
+  margin-left: 0.25rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+.meeting-hub--bookfriend .chat-input-area {
+  margin: 0 clamp(0.7rem, 2vw, 1.1rem) clamp(0.7rem, 2vw, 1rem);
+  padding: 0.48rem 0.5rem 0.48rem 0.78rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 62%, transparent);
+  border-radius: 1.35rem;
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
+  box-shadow: 0 16px 34px rgba(8, 10, 20, 0.12), inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+}
+
+.meeting-hub--bookfriend .chat-input {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  min-height: 2.45rem;
+  padding: 0.58rem 0.35rem;
+  border-radius: 0;
+}
+
+.meeting-hub--bookfriend .chat-input:focus,
+.meeting-hub--bookfriend .chat-input:focus-visible {
+  outline: 0;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.meeting-hub--bookfriend .send-btn {
+  width: 2.55rem;
+  min-width: 2.55rem;
+  height: 2.55rem;
+  background: color-mix(in srgb, var(--accent-soft) 52%, transparent) !important;
+  color: var(--accent-ink);
+}
+
+.meeting-hub--bookfriend .send-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-soft) 78%, transparent) !important;
+  transform: translateY(-1px) scale(1.02);
+}
+
+@keyframes bookfriendThinking {
+  0%, 100% { transform: translateY(0); opacity: 0.34; }
+  45% { transform: translateY(-3px); opacity: 0.78; }
+}
+
+@media (max-width: 640px) {
+  .meeting-hub--bookfriend .message-content {
+    max-width: min(84%, 30rem);
+  }
+
+  .meeting-hub--bookfriend .chat-input-area {
+    margin-inline: 0.6rem;
+    border-radius: 1.15rem;
+  }
+
+  .thinking-label {
+    display: none;
+  }
+}
