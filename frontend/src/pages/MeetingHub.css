@@ -31,6 +31,10 @@
   width: min(100%, 42rem);
 }
 
+.preferences-container {
+  width: min(100%, 39rem);
+}
+
 .quiz-card,
 .preferences-content,
 .room-header,
@@ -44,6 +48,12 @@
   border-radius: var(--radius-lg);
   display: grid;
   gap: 1.25rem;
+}
+
+.preferences-content {
+  padding: clamp(1.35rem, 3.5vw, 2rem);
+  gap: 1rem;
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
 }
 
 .quiz-gate-banner {
@@ -156,63 +166,153 @@
   justify-content: flex-end;
 }
 
+.meeting-pref-header {
+  display: grid;
+  gap: 0.45rem;
+  text-align: center;
+  max-width: 34rem;
+  justify-self: center;
+}
+
+.meeting-pref-header h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.45rem);
+  line-height: 1.05;
+}
+
+.meeting-pref-header p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
 .pref-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: 1fr;
+  gap: 0.7rem;
+  margin-top: 0.25rem;
 }
 
 .pref-card {
   display: grid;
-  justify-items: center;
-  gap: 0.6rem;
-  padding: 1.1rem 0.9rem;
-  text-align: center;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-soft);
-  background: transparent;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  grid-template-columns: 2.55rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.85rem 0.95rem;
+  text-align: left;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 34%, transparent);
+  transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
   cursor: pointer;
 }
 
-.pref-card:hover,
-.pref-card.selected {
-  background: var(--surface-muted);
-  border-color: var(--accent-border);
+.pref-card:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--surface-muted) 56%, transparent);
+  border-color: color-mix(in srgb, var(--accent-border) 44%, var(--border-soft));
 }
 
 .pref-card.selected {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-border) 40%, transparent) inset;
+  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
+  border-color: color-mix(in srgb, var(--accent-border) 58%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-1) 22%, transparent);
 }
 
 .pref-card:active {
-  transform: translateY(1px);
+  transform: translateY(0);
+}
+
+.pref-icon-shell {
+  width: 2.55rem;
+  height: 2.55rem;
+  border-radius: 0.85rem;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface-1) 52%, transparent);
+}
+
+.pref-card.selected .pref-icon-shell {
+  color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent-soft) 68%, transparent);
 }
 
 .pref-icon {
   display: block;
-  color: var(--text-muted);
   stroke: currentColor;
 }
 
-.pref-card h3 {
-  color: var(--text-primary);
-  font-size: 1rem;
+.pref-card-copy {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
 }
 
-.pref-card p {
+.pref-card-copy strong {
+  color: var(--text-primary);
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.pref-card-copy span {
+  color: var(--text-muted);
   font-size: var(--font-size-0);
+  line-height: 1.45;
 }
 
 .meeting-notice {
-  margin-top: 0.85rem;
-  padding: 0.85rem 1rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+  padding: 0.78rem 0.9rem;
+  border-radius: 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 65%, transparent);
+  background: color-mix(in srgb, var(--surface-muted) 46%, transparent);
   color: var(--text-secondary);
-  line-height: 1.6;
+  line-height: 1.55;
   text-align: center;
+}
+
+.meeting-pref-actions {
+  display: grid;
+  gap: 0.65rem;
+  justify-items: stretch;
+  margin-top: 0.15rem;
+}
+
+.meeting-pref-actions .btn-primary,
+.meeting-pref-actions .btn-secondary,
+.meeting-tertiary-action {
+  width: 100%;
+  justify-content: center;
+}
+
+.meeting-pref-actions .meeting-primary-action {
+  min-height: 2.85rem;
+  font-weight: 700;
+}
+
+.meeting-pref-actions .meeting-secondary-action {
+  min-height: 2.65rem;
+  background: color-mix(in srgb, var(--surface-2) 52%, transparent);
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--border-soft) 72%, transparent);
+  box-shadow: none;
+}
+
+.meeting-tertiary-action {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  min-height: 2.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.88rem;
+}
+
+.meeting-tertiary-action:hover,
+.meeting-tertiary-action:focus-visible {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-muted) 42%, transparent);
+  outline: none;
 }
 
 
@@ -240,6 +340,17 @@ html[data-theme='dark'] .meeting-hub .btn-secondary:hover,
 html[data-theme='dark'] .meeting-hub .btn-leave:hover,
 html[data-theme='dark'] .meeting-hub .send-btn:hover {
   opacity: 0.92;
+}
+
+html[data-theme='dark'] .meeting-pref-actions .meeting-secondary-action {
+  background: color-mix(in srgb, var(--surface-2) 58%, transparent);
+  border-color: color-mix(in srgb, var(--border-soft) 60%, transparent);
+  color: var(--text-primary);
+}
+
+html[data-theme='dark'] .meeting-tertiary-action {
+  background: transparent;
+  color: var(--text-muted);
 }
 
 .searching-container {
@@ -766,19 +877,9 @@ html[data-theme='dark'] .meeting-hub .send-btn:hover {
   }
 
   .pref-card {
-    grid-template-columns: 2.6rem 1fr;
-    justify-items: start;
-    text-align: left;
-    gap: 0.75rem 0.9rem;
-    padding: 0.9rem 0.9rem;
-  }
-
-  .pref-card h3 {
-    margin: 0;
-  }
-
-  .pref-card p {
-    margin: 0.2rem 0 0;
+    grid-template-columns: 2.45rem 1fr;
+    gap: 0.7rem;
+    padding: 0.82rem;
   }
 
   .meeting-notice {

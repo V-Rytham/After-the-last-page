@@ -357,7 +357,7 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
         </div>
       )}
 
-      <section className="profile-hero glass-panel" aria-label="Public profile overview">
+      <section className="profile-hero" aria-label="Public profile overview">
         <div className="profile-identity">
           <div className="profile-avatar-shell" aria-hidden="true">
             {profileImageUrl && !imageFailed ? (
@@ -486,21 +486,21 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
             </div>
 
             <div className="profile-stats-grid">
-              <article className="profile-stat-tile">
+              <div className="profile-stat-tile">
                 <strong>{loading ? '…' : stats.booksCompleted}</strong>
                 <span>Books completed</span>
-              </article>
-              <article className="profile-stat-tile">
+              </div>
+              <div className="profile-stat-tile">
                 <strong>{loading ? '…' : stats.discussionsParticipated}</strong>
                 <span>Discussions participated</span>
-              </article>
+              </div>
             </div>
           </section>
           <section className="profile-card glass-panel" aria-label="Preferred genres">
             <div className="profile-card-head">
               <h2 className="font-serif">Preferred genres</h2>
             </div>
-            <p className="profile-inline-note">Select a few genres and your library will be curated instantly.</p>
+            <p className="profile-genre-helper">Select a few genres and your library will be curated instantly.</p>
             <GenreSelector
               selectedGenres={selectedGenres}
               disabled={savingGenres}
