@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Book } from '../models/Book.js';
 import { isProd } from '../utils/runtime.js';
 import { log } from '../utils/logger.js';
+import { createMicroserviceClient } from '../services/microserviceProxy.js';
 
 const trimTrailingSlash = (value) => String(value || '').replace(/\/$/, '');
 
@@ -56,6 +57,13 @@ const getBookFriendBaseUrl = (req) => {
 
   return 'http://127.0.0.1:5050';
 };
+
+const bookFriendClient = createMicroserviceClient({
+  envBaseUrlKey: 'BOOKFRIEND_SERVER_URL',
+  envTimeoutMsKey: 'BOOKFRIEND_SERVICE_TIMEOUT_MS',
+  envEnabledKey: 'BOOKFRIEND_SERVICE_ENABLED',
+  fallbackEnabled: true,
+});
 const localSessionStore = new Map();
 
 const isLocalFallbackEnabled = () => {
@@ -199,41 +207,39 @@ const isServiceUnavailableError = (error) => {
 };
 
 const forwardToBookFriend = async (req, path, payload) => {
-  let response;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
-  const targetBaseUrl = getBookFriendBaseUrl(req);
+  const configuredClientEnabled = bookFriendClient.isEnabled();
+  const targetBaseUrl = configuredClientEnabled ? null : getBookFriendBaseUrl(req);
 
   try {
-    response = await fetch(`${targetBaseUrl}${path}`, {
+    if (configuredClientEnabled) {
+      return await bookFriendClient.post(path, payload);
+    }
+
+    const response = await fetch(`${targetBaseUrl}${path}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      signal: controller.signal,
+      signal: AbortSignal.timeout(15_000),
     });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const error = new Error(data?.message || 'BookFriend agent request failed.');
+      error.statusCode = response.status;
+      error.serviceUnavailable = response.status >= 500;
+      error.payload = data;
+      error.targetBaseUrl = targetBaseUrl;
+      throw error;
+    }
+
+    return data;
   } catch (error) {
-    error.serviceUnavailable = isServiceUnavailableError(error);
-    error.targetBaseUrl = targetBaseUrl;
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    const message = data?.message || 'BookFriend agent request failed.';
-    const error = new Error(message);
-    error.statusCode = response.status;
-    error.serviceUnavailable = response.status >= 500;
-    error.payload = data;
-    error.targetBaseUrl = targetBaseUrl;
+    error.serviceUnavailable = Boolean(error?.serviceUnavailable) || isServiceUnavailableError(error);
+    if (targetBaseUrl && !error?.targetBaseUrl) {
+      error.targetBaseUrl = targetBaseUrl;
+    }
     throw error;
   }
-
-  return data;
 };
 
 const createLocalFallbackSession = async ({ userId, bookId, bookTitle, bookAuthor }) => {
