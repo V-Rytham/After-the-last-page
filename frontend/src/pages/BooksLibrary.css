@@ -51,7 +51,7 @@ html[data-theme='sepia'] .editorial-theme {
   min-height: 100vh;
   background: var(--desk-page-bg);
   width: 100%;
-  padding: 28px clamp(16px, 2.8vw, 36px) 56px;
+  padding: 18px clamp(16px, 2.8vw, 36px) 56px;
 }
 
 .desk-shell {
@@ -62,7 +62,6 @@ html[data-theme='sepia'] .editorial-theme {
   gap: 28px;
 }
 
-.desk-search-panel,
 .desk-section__heading {
   display: flex;
   flex-direction: column;
@@ -70,7 +69,6 @@ html[data-theme='sepia'] .editorial-theme {
   gap: 10px;
 }
 
-.desk-search-panel,
 .desk-hero,
 .desk-section {
   padding-inline: clamp(4px, 1vw, 12px);
@@ -88,68 +86,6 @@ html[data-theme='sepia'] .editorial-theme {
   align-items: end;
   justify-content: space-between;
   flex-direction: row;
-}
-
-.desk-search {
-  width: min(620px, 100%);
-  min-height: 2.85rem;
-  border-radius: 999px;
-  border: 1px solid var(--desk-border);
-  background: var(--desk-card-bg);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0 0.66rem 0 0.88rem;
-}
-
-.desk-search-shell {
-  width: 100%;
-  max-width: min(780px, 100%);
-  margin-inline: auto;
-  display: grid;
-  gap: 9px;
-  justify-items: center;
-}
-
-.desk-search--modern {
-  width: min(560px, 100%);
-  background: var(--surface-2);
-  border-color: color-mix(in srgb, var(--desk-border) 78%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-1) 30%, transparent);
-}
-
-.desk-search input {
-  flex: 1;
-  border: 0;
-  background: transparent;
-  font-size: 0.88rem;
-  color: var(--desk-text);
-}
-
-.desk-search input:focus {
-  outline: none;
-}
-
-.desk-search:focus-within {
-  border-color: var(--accent-border);
-  box-shadow: 0 0 0 2px var(--selection);
-}
-
-.desk-search input::placeholder,
-.desk-search__icon {
-  color: var(--desk-muted);
-}
-
-.desk-search__clear {
-  width: 1.7rem;
-  height: 1.7rem;
-  border-radius: 999px;
-  border: 1px solid var(--desk-border);
-  display: grid;
-  place-items: center;
-  color: var(--desk-muted);
-  background: var(--desk-card-bg);
-  cursor: pointer;
 }
 
 .desk-hero,
