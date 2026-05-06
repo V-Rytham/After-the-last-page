@@ -22,10 +22,20 @@ const readJsonSafely = async (response) => {
   return { message: text || 'Service returned a non-JSON response.' };
 };
 
+const serializeError = (error) => {
+  if (!error) return null;
+  return {
+    name: error.name,
+    message: error.message,
+    statusCode: error.statusCode,
+    payload: error.payload,
+  };
+};
+
 export const createMicroserviceClient = ({ envBaseUrlKey, envTimeoutMsKey, envEnabledKey, fallbackEnabled = false }) => {
   const baseUrl = normalizeBaseUrl(process.env[envBaseUrlKey]);
   const enabled = parseBool(process.env[envEnabledKey], Boolean(baseUrl));
-  const timeoutMs = Number(process.env[envTimeoutMsKey] || 15_000);
+  const timeoutMs = Number(process.env[envTimeoutMsKey] || 60_000);
 
   return {
     isEnabled: () => enabled && Boolean(baseUrl),
@@ -37,9 +47,12 @@ export const createMicroserviceClient = ({ envBaseUrlKey, envTimeoutMsKey, envEn
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 15_000);
+      const targetUrl = `${baseUrl}${path}`;
+      const timeoutDurationMs = Number.isFinite(timeoutMs) ? timeoutMs : 60_000;
+      const timeout = setTimeout(() => controller.abort(), timeoutDurationMs);
+      console.info('[MICROSERVICE_PROXY] Request started', { targetUrl, timeoutMs: timeoutDurationMs });
       try {
-        const response = await fetch(`${baseUrl}${path}`, {
+        const response = await fetch(targetUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...extraHeaders },
           body: JSON.stringify(payload || {}),
@@ -47,15 +60,31 @@ export const createMicroserviceClient = ({ envBaseUrlKey, envTimeoutMsKey, envEn
         });
 
         const data = await readJsonSafely(response);
+        console.info('[MICROSERVICE_PROXY] Response received', {
+          targetUrl,
+          status: response.status,
+          ok: response.ok,
+        });
         if (!response.ok) {
           const error = new Error(data?.message || 'Microservice request failed.');
           error.statusCode = response.status;
           error.payload = data;
+          console.error('[MICROSERVICE_PROXY] Request failed', {
+            targetUrl,
+            timeoutMs: timeoutDurationMs,
+            status: response.status,
+            parsedErrorResponse: data,
+          });
           throw error;
         }
 
         return data;
       } catch (error) {
+        console.error('[MICROSERVICE_PROXY] Request exception', {
+          targetUrl,
+          timeoutMs: timeoutDurationMs,
+          error: serializeError(error),
+        });
         if (fallbackEnabled) {
           error.allowLocalFallback = true;
         }
