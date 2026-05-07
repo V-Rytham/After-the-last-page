@@ -1,4 +1,4 @@
-import { checkMeetAccess, checkQuizAccess, grantMeetFallback } from '../services/accessService.js';
+import { checkMeetAccess, checkQuizAccess } from '../services/accessService.js';
 import mongoose from 'mongoose';
 import { buildSafeErrorBody } from '../utils/runtime.js';
 import { isDegradedMode } from '../utils/degradedMode.js';
@@ -30,25 +30,6 @@ export const checkAccess = async (req, res) => {
   } catch (error) {
     const status = error.statusCode || 500;
     return res.status(status).json(buildSafeErrorBody('Failed to check access.', error));
-  }
-};
-
-export const requestMeetFallback = async (req, res) => {
-  try {
-    const bookId = String(req.body?.bookId || '').trim();
-    if (!bookId) {
-      return res.status(400).json({ message: 'bookId is required.' });
-    }
-
-    if (isDegradedMode()) {
-      return res.json({ ok: false, fallback: true, message: 'Meet is unavailable in degraded mode.' });
-    }
-
-    await grantMeetFallback({ userId: req.user?._id, bookId, reason: req.body?.reason });
-    return res.json({ ok: true });
-  } catch (error) {
-    const status = error.statusCode || 500;
-    return res.status(status).json(buildSafeErrorBody('Failed to grant fallback.', error));
   }
 };
 

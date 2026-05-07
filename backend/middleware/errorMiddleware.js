@@ -10,11 +10,29 @@ export const errorHandler = (err, req, res, next) => {
     return;
   }
 
-  console.error('[ERROR]', err);
+  const status = Number(err?.statusCode || err?.status || 500);
+  const safeStatus = Number.isInteger(status) && status >= 400 && status < 600 ? status : 500;
+  const source = String(err?.source || 'backend').trim();
+  const service = String(err?.service || 'nexus-core').trim();
+  const requestId = req?.id || req?.headers?.['x-request-id'] || null;
 
-  return res.status(200).json({
-    ...buildSafeErrorBody(err?.message || 'Fallback error', err),
+  console.error('[ERROR]', {
+    status: safeStatus,
+    source,
+    service,
+    requestId,
+    method: req?.method,
+    path: req?.originalUrl,
+    message: err?.message,
+    stack: err?.stack,
+  });
+
+  return res.status(safeStatus).json({
+    ...buildSafeErrorBody(err?.message || 'Request failed.', err),
     error: true,
-    fallback: true,
+    source,
+    service,
+    status: safeStatus,
+    requestId,
   });
 };
