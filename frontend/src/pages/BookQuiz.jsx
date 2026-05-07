@@ -88,7 +88,6 @@ export default function BookQuiz() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
-  const [fallbackGranting, setFallbackGranting] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
   const [quizJobId, setQuizJobId] = useState(null);
   const [quizJobProgress, setQuizJobProgress] = useState(0);
@@ -276,27 +275,8 @@ export default function BookQuiz() {
     }
   }, [bookId, statusCopy]);
 
-  const handleContinueToMeet = async () => {
-    if (!bookId || fallbackGranting) {
-      return;
-    }
-
-    setFallbackGranting(true);
-    setError('');
-
-    try {
-      await api.post('/access/fallback/meet', {
-        bookId,
-        reason: 'quiz_unavailable',
-      });
-
-      navigate(`/meet/${bookId}`, { replace: true });
-    } catch (err) {
-      const message = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Unable to open Meet right now.';
-      setError(message);
-    } finally {
-      setFallbackGranting(false);
-    }
+  const handleContinueToMeet = () => {
+    navigate(`/meet/${bookId}`, { replace: true });
   };
 
   useEffect(() => {
@@ -398,9 +378,7 @@ export default function BookQuiz() {
 
       {loading && processingMessage && (
         <div className="quiz-actions">
-          <button type="button" className="btn-secondary" onClick={handleContinueToMeet} disabled={fallbackGranting}>
-            {fallbackGranting ? 'Opening Meet\u2026' : 'Continue to Meet'}
-          </button>
+          <button type="button" className="btn-secondary" onClick={handleContinueToMeet}>Continue to Meet</button>
           <button type="button" className="btn-secondary" onClick={() => navigate('/desk')}>
             Back to Desk
           </button>
@@ -418,9 +396,7 @@ export default function BookQuiz() {
             <button type="button" className="btn-primary" onClick={() => fetchQuiz({ force: true })}>
               <RefreshCw size={16} /> Retry
             </button>
-            <button type="button" className="btn-secondary" onClick={handleContinueToMeet} disabled={fallbackGranting}>
-              {fallbackGranting ? 'Opening Meet\u2026' : 'Continue to Meet'}
-            </button>
+            <button type="button" className="btn-secondary" onClick={handleContinueToMeet}>Continue to Meet</button>
             <button type="button" className="btn-secondary" onClick={() => navigate('/desk')}>
               Back to Desk
             </button>

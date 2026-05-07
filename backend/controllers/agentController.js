@@ -62,7 +62,6 @@ const bookFriendClient = createMicroserviceClient({
   envBaseUrlKey: 'BOOKFRIEND_SERVER_URL',
   envTimeoutMsKey: 'BOOKFRIEND_SERVICE_TIMEOUT_MS',
   envEnabledKey: 'BOOKFRIEND_SERVICE_ENABLED',
-  fallbackEnabled: true,
 });
 const localSessionStore = new Map();
 

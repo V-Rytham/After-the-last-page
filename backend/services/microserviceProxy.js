@@ -32,7 +32,7 @@ const serializeError = (error) => {
   };
 };
 
-export const createMicroserviceClient = ({ envBaseUrlKey, envTimeoutMsKey, envEnabledKey, fallbackEnabled = false }) => {
+export const createMicroserviceClient = ({ envBaseUrlKey, envTimeoutMsKey, envEnabledKey }) => {
   const baseUrl = normalizeBaseUrl(process.env[envBaseUrlKey]);
   const enabled = parseBool(process.env[envEnabledKey], Boolean(baseUrl));
   const timeoutMs = Number(process.env[envTimeoutMsKey] || 60_000);
@@ -103,9 +103,6 @@ export const createMicroserviceClient = ({ envBaseUrlKey, envTimeoutMsKey, envEn
           timeoutMs: timeoutDurationMs,
           error: serializeError(error),
         });
-        if (fallbackEnabled) {
-          error.allowLocalFallback = true;
-        }
         throw error;
     } finally {
       clearTimeout(timeout);

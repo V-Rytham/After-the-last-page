@@ -178,14 +178,14 @@ app.get('/api/health', (req, res) => {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
 
-    return res.status(200).json({
-      status: dbConnected ? 'ok' : 'degraded',
+    return res.status(dbConnected ? 200 : 503).json({
+      status: dbConnected ? 'ok' : 'unavailable',
       db: dbConnected ? 'connected' : 'disconnected',
       uptime: process.uptime(),
     });
   } catch (_ERROR) {
-    return res.status(200).json({
-      status: 'degraded',
+    return res.status(503).json({
+      status: 'unavailable',
       db: 'unknown',
     });
   }
@@ -213,7 +213,8 @@ httpServer.on('error', (error) => {
 try {
   await connectDB();
 } catch (error) {
-  console.warn('[SERVER] Starting in degraded mode without database:', error?.message || error);
+  console.error('[SERVER] Failed startup database validation:', error?.message || error);
+  process.exit(1);
 }
 
 httpServer.listen(PORT, () => {
