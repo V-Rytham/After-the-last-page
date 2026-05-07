@@ -13,6 +13,7 @@
   display: grid;
   gap: 0.75rem;
 }
+.thread-page.focus-mode .thread-shell { width: min(100%, 74rem); }
 
 .thread-loader {
   min-height: 44vh;
@@ -363,10 +364,16 @@
 }
 
 .thread-banner {
-  padding: 0.8rem 0.9rem;
+  padding: 0.56rem 0.75rem;
   border: 1px solid var(--border-soft);
   border-radius: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
 }
+.thread-banner-dismiss { color: var(--text-muted); }
+.thread-banner-dismiss:hover { color: var(--text-primary); }
 
 .thread-banner.success { background: var(--success-soft); }
 .thread-banner.error { background: var(--danger-soft); }
@@ -404,7 +411,7 @@
 .thread-list-button {
   width: 100%;
   text-align: left;
-  padding: 0.85rem 0.9rem;
+  padding: 0.75rem 0.8rem;
 }
 
 .thread-list-title {
@@ -432,10 +439,7 @@
 .like-button {
   display: inline-flex;
   align-items: center;
-  gap: 0.34rem;
-  border-radius: 999px;
-  border: 1px solid var(--border-soft);
-  background: var(--surface-muted);
+  gap: 0.26rem;
 }
 
 .resonance-pill {
@@ -443,17 +447,20 @@
 }
 
 .like-button {
-  min-height: 1.85rem;
-  padding: 0 0.55rem;
+  min-height: 1.45rem;
+  padding: 0 0.2rem;
+  border: 0;
+  border-radius: 0.42rem;
   background: transparent;
+  transition: transform 120ms ease, background-color 120ms ease, color 120ms ease;
 }
 
-.like-button:hover { background: var(--surface-muted); }
+.like-button:hover { background: color-mix(in srgb, var(--surface-muted) 58%, transparent); transform: translateY(-1px); }
 .like-button.is-liked {
   color: var(--accent-ink);
-  border-color: var(--accent-border);
-  background: color-mix(in srgb, var(--accent-soft) 58%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 38%, transparent);
 }
+.like-count { font-size: 0.77rem; color: var(--text-muted); }
 
 .thread-book-context {
   display: grid;
@@ -522,6 +529,13 @@
   display: grid;
   gap: 0.75rem;
   padding: 0.8rem;
+}
+.inline-reply-form--bare {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.2rem 0 0.35rem;
 }
 
 .reply-node {

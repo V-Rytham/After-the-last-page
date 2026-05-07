@@ -76,6 +76,7 @@ const MeetingHub = () => {
 
   const [chatInput, setChatInput] = useState('');
   const [prefType, setPrefType] = useState(initialPrefType);
+  const hasUnsentDraft = chatInput.trim().length > 0;
 
   useEffect(() => {
     roomIdRef.current = roomId;
@@ -379,6 +380,23 @@ const MeetingHub = () => {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [sessionIsSensitive]);
+
+  useEffect(() => {
+    const handleBeforeUnloadDraft = (event) => {
+      if (!hasUnsentDraft) return;
+      event.preventDefault();
+      event.returnValue = 'You have an unsent message.';
+      return event.returnValue;
+    };
+    window.addEventListener('beforeunload', handleBeforeUnloadDraft);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnloadDraft);
+  }, [hasUnsentDraft]);
+
+  useEffect(() => () => {
+    if (sessionIsSensitive) {
+      endSession('route-unmount');
+    }
+  }, [endSession, sessionIsSensitive]);
 
 	  const cleanupMedia = useCallback(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
@@ -775,14 +793,14 @@ const MeetingHub = () => {
                 </div>
                 <div className="partner-copy">
                   <div className="room-title font-serif">BookFriend</div>
-                  <div className="room-subtitle text-muted">Connected</div>
+                  <div className="room-subtitle text-muted">Connected · AI companion</div>
                 </div>
               </div>
 
               <div className="room-actions">
                 <button
                   type="button"
-                  className="btn-secondary sm"
+                  className="btn-secondary sm btn-leave-inline"
                   onClick={() => {
                     closeBookFriendSession();
                     setMessages([]);
@@ -825,7 +843,7 @@ const MeetingHub = () => {
                 </div>
                 <div className="partner-copy">
                   <div className="room-title font-serif">{partnerDisplayName || 'Reader'}</div>
-                  <div className="room-subtitle text-muted">Online</div>
+                  <div className="room-subtitle text-muted">Online now</div>
                 </div>
               </div>
 
