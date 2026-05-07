@@ -11,12 +11,12 @@ const getGutenbergCoverUrl = (gutenbergId) => {
 
 const normalizeGenre = (value) => String(value || '').trim();
 
-const BookCard = ({ book, loading = false, onboardingHighlight = false }) => {
+const BookCard = ({ book, loading = false, onboardingHighlight = false, skeletonDelay = 0 }) => {
   const [imageError, setImageError] = useState(false);
 
   if (loading) {
     return (
-      <article className="library-book-card" aria-hidden="true">
+      <article className="library-book-card library-book-card--skeleton" style={{ '--skeleton-delay': `${skeletonDelay}ms` }} aria-hidden="true">
         <div className="library-book-cover skeleton" />
         <div className="library-book-title skeleton" />
         <div className="library-book-author skeleton" />

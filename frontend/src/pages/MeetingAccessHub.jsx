@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, Sparkles } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
@@ -23,6 +23,9 @@ export default function MeetingAccessHub() {
   const normalizedSearchResults = useMemo(() => normalizeSearchResults(books), [books]);
   const normalizedFeatured = useMemo(() => normalizeSearchResults(featuredBooks), [featuredBooks]);
   const visibleBooks = hasQuery ? normalizedSearchResults : normalizedFeatured;
+  const isLoading = Boolean(loading || (!hasQuery && featuredLoading && visibleBooks.length === 0));
+  const isError = Boolean(error && hasQuery);
+  const isEmpty = Boolean(!isLoading && !isError && hasQuery && visibleBooks.length === 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,36 +147,45 @@ export default function MeetingAccessHub() {
         </label>
       </section>
 
-      {error && hasQuery ? (
+      {isError ? (
         <section className="meeting-access-empty glass-panel">
           <h2 className="font-serif">Unable to load books right now.</h2>
           <p>{error}</p>
         </section>
       ) : null}
 
-      {loading ? (
+      {isLoading ? (
         <section className="meeting-access-results" aria-label="Loading books">
-          {Array.from({ length: 2 }).map((_, index) => (
+          {Array.from({ length: 5 }).map((_, index) => (
             <article key={`skeleton-${index}`} className="meeting-book-card meeting-book-card--skeleton glass-panel" aria-hidden="true">
-              <div className="meeting-book-skeleton-line meeting-book-skeleton-line--title" />
-              <div className="meeting-book-skeleton-line meeting-book-skeleton-line--subtitle" />
+              <div className="meeting-book-skeleton-cover" />
+              <div className="meeting-book-skeleton-main">
+                <div className="meeting-book-skeleton-line meeting-book-skeleton-line--title" />
+                <div className="meeting-book-skeleton-line meeting-book-skeleton-line--subtitle" />
+                <div className="meeting-book-skeleton-line meeting-book-skeleton-line--meta" />
+                <div className="meeting-book-skeleton-pills">
+                  <span className="meeting-book-skeleton-pill" />
+                  <span className="meeting-book-skeleton-pill" />
+                  <span className="meeting-book-skeleton-pill" />
+                </div>
+              </div>
+              <div className="meeting-book-skeleton-side">
+                <div className="meeting-book-skeleton-cta" />
+                <div className="meeting-book-skeleton-status" />
+              </div>
             </article>
           ))}
+          <div className="meeting-loading-caption glass-panel">
+            <Sparkles size={16} aria-hidden="true" />
+            <div>
+              <strong>Preparing reader profiles</strong>
+              <p>Matching active readers and books for meaningful conversations.</p>
+            </div>
+          </div>
         </section>
       ) : null}
 
-      {!loading && !hasQuery && featuredLoading && visibleBooks.length === 0 ? (
-        <section className="meeting-access-results" aria-label="Loading books">
-          {Array.from({ length: 2 }).map((_, index) => (
-            <article key={`featured-skeleton-${index}`} className="meeting-book-card meeting-book-card--skeleton glass-panel" aria-hidden="true">
-              <div className="meeting-book-skeleton-line meeting-book-skeleton-line--title" />
-              <div className="meeting-book-skeleton-line meeting-book-skeleton-line--subtitle" />
-            </article>
-          ))}
-        </section>
-      ) : null}
-
-      {!loading && visibleBooks.length > 0 ? (
+      {!isLoading && visibleBooks.length > 0 ? (
         <section className="meeting-access-results" aria-label="Meet books">
           {visibleBooks.map((book) => {
             const key = `${book.source}:${book.source_book_id}`;
@@ -199,10 +211,10 @@ export default function MeetingAccessHub() {
         </section>
       ) : null}
 
-      {!loading && !error && hasQuery && visibleBooks.length === 0 ? (
+      {isEmpty ? (
         <section className="meeting-access-empty glass-panel">
-          <h2 className="font-serif">No books found.</h2>
-          <p>Try a different title or author.</p>
+          <h2 className="font-serif">Your next reading conversation is waiting.</h2>
+          <p>Try a different title or author, or browse featured books to start chatting now.</p>
         </section>
       ) : null}
     </div>

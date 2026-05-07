@@ -97,9 +97,10 @@ export default function Library({ currentUser }) {
   const loading = showSearchResults ? searchState.loading : recLoading;
   const error = showSearchResults ? searchState.error : recError;
   const isTypingSearch = Boolean(normalizeQuery(search)) && normalizeQuery(search) !== normalizedSearch;
+  const isLoading = Boolean(loading || isTypingSearch);
   const searchHeading = !showSearchResults
     ? 'Curated for you'
-    : (loading || isTypingSearch ? 'Searching' : 'Search Results');
+    : (isLoading ? 'Searching' : 'Search Results');
 
   return (
     <main className="library-page content-container">
@@ -122,9 +123,9 @@ export default function Library({ currentUser }) {
       <header className="library-page-header">
         <h1 className="library-heading">
           {showSearchResults ? (
-            <span className={`library-heading-state${loading || isTypingSearch ? ' is-searching' : ' is-results'}`}>
+            <span className={`library-heading-state${isLoading ? ' is-searching' : ' is-results'}`}>
               {searchHeading}
-              {(loading || isTypingSearch) ? <span className="library-search-dots" aria-hidden="true" /> : null}
+              {isLoading ? <span className="library-search-dots" aria-hidden="true" /> : null}
             </span>
           ) : searchHeading}
         </h1>
@@ -132,7 +133,7 @@ export default function Library({ currentUser }) {
           value={search}
           onChange={setSearch}
           onSubmit={() => {}}
-          loading={loading}
+          loading={isLoading}
           categories={[]}
           activeCategory={null}
           onCategoryChange={() => {}}
@@ -145,8 +146,10 @@ export default function Library({ currentUser }) {
 
       <BookGrid
         books={visibleBooks}
-        loading={loading}
+        loading={isLoading}
         error={error}
+        emptyTitle={showSearchResults ? 'No matches yet.' : 'Your shelf is waiting.'}
+        emptyMessage={showSearchResults ? 'Try another author, title, or a broader genre keyword.' : 'Start with a title search, then save books to build your library.'}
         onboardingHighlightBookId={!onboardingCompleted && onboardingStep === 2 ? highlightBookId : ''}
       />
     </main>
