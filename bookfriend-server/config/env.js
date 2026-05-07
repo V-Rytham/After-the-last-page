@@ -29,15 +29,18 @@ export const loadBookFriendEnv = () => {
     path.resolve(process.cwd(), 'bookfriend-server', '.env.local'),
   ];
 
-  for (const envPath of candidates) {
-    if (fs.existsSync(envPath)) {
-      dotenv.config({ path: envPath });
-      loaded = true;
-      return;
-    }
+  // Load every discovered env file so service-specific values can override shared defaults.
+  // Precedence: earlier files are lowest priority, later files can overwrite.
+  const existingPaths = candidates.filter((envPath) => fs.existsSync(envPath));
+
+  for (const envPath of existingPaths) {
+    dotenv.config({ path: envPath, override: true });
   }
 
-  dotenv.config();
+  if (!existingPaths.length) {
+    dotenv.config();
+  }
+
   loaded = true;
 };
 
