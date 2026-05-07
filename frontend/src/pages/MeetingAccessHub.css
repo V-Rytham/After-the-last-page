@@ -131,21 +131,14 @@ html[data-theme='dark'] .meeting-access-page .meeting-book-cta {
 }
 
 .meeting-book-card--skeleton {
-  grid-template-columns: minmax(0, 1fr) 6rem;
+  grid-template-columns: 4rem minmax(0, 1fr) 6.5rem;
   gap: 1rem;
-  opacity: 0.72;
+  opacity: 0.85;
   box-shadow: none;
 }
-.meeting-book-card--skeleton::after {
-  content: '';
-  width: 5.6rem;
-  height: 2rem;
-  border-radius: 999px;
-  align-self: center;
-  background: linear-gradient(100deg, color-mix(in srgb, var(--surface-muted) 52%, transparent), color-mix(in srgb, var(--surface-1) 42%, transparent), color-mix(in srgb, var(--surface-muted) 52%, transparent));
-  background-size: 200% 100%;
-  animation: meeting-skeleton 1.45s ease-in-out infinite;
-}
+.meeting-book-skeleton-cover { width: 100%; aspect-ratio: 2/3; border-radius: 0.65rem; }
+.meeting-book-skeleton-main { display: grid; gap: 0.5rem; align-content: center; }
+.meeting-book-skeleton-side { display: grid; gap: 0.5rem; justify-items: end; align-content: center; }
 .meeting-book-skeleton-line {
   height: 0.72rem;
   border-radius: 999px;
@@ -155,6 +148,22 @@ html[data-theme='dark'] .meeting-access-page .meeting-book-cta {
 }
 .meeting-book-skeleton-line--title { width: min(21rem, 62%); }
 .meeting-book-skeleton-line--subtitle { width: min(14rem, 42%); }
+.meeting-book-skeleton-line--meta { width: min(16rem, 50%); }
+.meeting-book-skeleton-cover,
+.meeting-book-skeleton-cta,
+.meeting-book-skeleton-status,
+.meeting-book-skeleton-pill {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--surface-muted) 48%, transparent), color-mix(in srgb, var(--surface-1) 38%, transparent), color-mix(in srgb, var(--surface-muted) 48%, transparent));
+  background-size: 200% 100%;
+  animation: meeting-skeleton 1.65s ease-in-out infinite;
+}
+.meeting-book-skeleton-pills { display: flex; gap: 0.4rem; }
+.meeting-book-skeleton-pill { width: 3rem; height: 1rem; border-radius: 999px; }
+.meeting-book-skeleton-cta { width: 5.8rem; height: 2rem; border-radius: 999px; }
+.meeting-book-skeleton-status { width: 4.25rem; height: 0.9rem; border-radius: 999px; opacity: 0.75; }
+
+.meeting-loading-caption { display: flex; align-items: center; gap: 0.7rem; padding: 0.8rem 0.95rem; color: var(--text-secondary); }
+.meeting-loading-caption p { margin: 0.2rem 0 0; }
 
 .meeting-access-empty { padding: 1rem; border-radius: var(--radius-lg); }
 
@@ -164,5 +173,7 @@ html[data-theme='dark'] .meeting-access-page .meeting-book-cta {
 @media (max-width: 800px) {
   .meeting-access-hero { grid-template-columns: 1fr; }
   .meeting-book-card { grid-template-columns: 1fr; gap: 0.65rem; }
+  .meeting-book-card--skeleton { grid-template-columns: 3.25rem 1fr; }
+  .meeting-book-skeleton-side { grid-column: 1 / -1; justify-items: start; grid-template-columns: 5.5rem 4rem; }
   .meeting-book-cta { justify-self: start; }
 }
