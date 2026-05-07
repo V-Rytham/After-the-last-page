@@ -492,7 +492,7 @@ html[data-theme='dark'] .meeting-tertiary-action {
 }
 
 .room-container {
-  width: min(100%, 64rem);
+  width: min(100%, 82rem);
   height: 100%;
   min-height: 0;
   display: grid;
@@ -501,7 +501,7 @@ html[data-theme='dark'] .meeting-tertiary-action {
 
 .room-header {
   flex-shrink: 0;
-  padding: 1rem 1.2rem 0.95rem;
+  padding: 0.62rem 0.92rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -521,13 +521,13 @@ html[data-theme='dark'] .meeting-tertiary-action {
 .partner-info {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
+  gap: 0.62rem;
 }
 
 .partner-avatar,
 .wizard-avatar {
-  width: 3rem;
-  height: 3rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--accent-border) 68%, var(--border-soft));
   display: grid;
@@ -538,16 +538,16 @@ html[data-theme='dark'] .meeting-tertiary-action {
 
 .partner-copy {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.08rem;
 }
 
 .room-title {
-  font-size: var(--font-size-4);
+  font-size: 1.02rem;
   line-height: var(--leading-tight);
 }
 
 .room-subtitle {
-  font-size: var(--font-size-0);
+  font-size: 0.75rem;
   max-width: 46ch;
 }
 
@@ -583,11 +583,14 @@ html[data-theme='dark'] .meeting-tertiary-action {
 .btn-leave {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.28rem;
+  padding: 0.32rem 0.55rem;
+  min-height: 1.95rem;
   border: 1px solid color-mix(in srgb, var(--intent-danger-text) 28%, var(--border-soft));
   background: color-mix(in srgb, var(--intent-danger-bg) 35%, var(--surface-1));
   color: color-mix(in srgb, var(--intent-danger-text) 85%, var(--text-primary));
 }
+.btn-leave-inline { padding-inline: 0.5rem; }
 
 .btn-leave:hover {
   border-color: color-mix(in srgb, var(--intent-danger-text) 45%, var(--border-soft));
@@ -605,7 +608,7 @@ html[data-theme='dark'] .meeting-tertiary-action {
 .chat-messages {
   flex: 1;
   min-height: 0;
-  padding: 1.15rem 1.1rem 1.2rem;
+  padding: 0.95rem 1.2rem 1rem;
   overflow-y: auto;
   overflow-x: hidden;
   display: grid;
@@ -708,7 +711,7 @@ html[data-theme='dark'] .meeting-tertiary-action {
   display: flex;
   align-items: flex-end;
   gap: 0.75rem;
-  padding: 0.85rem 1rem 1rem;
+  padding: 0.66rem 0.9rem 0.78rem;
   border-top: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
   background: color-mix(in srgb, var(--surface-1) 92%, var(--page-bg-alt));
   box-shadow: 0 -10px 24px rgba(8, 10, 20, 0.2);

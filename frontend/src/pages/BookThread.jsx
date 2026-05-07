@@ -7,6 +7,7 @@ import {
   Search,
   Send,
   Share2,
+  X,
 } from 'lucide-react';
 import api from '../utils/api';
 import { getOrCreateIdentity } from '../utils/identity';
@@ -80,7 +81,10 @@ const getReplyCountLabel = (count) => (count === 1 ? '1 reply' : `${count} repli
 
 const getAuthorDisplayName = (item) => {
   const username = String(item?.authorUsername || '').trim();
-  return username || 'Anonymous';
+  if (username) return username;
+  const displayName = String(item?.displayName || '').trim();
+  if (displayName) return displayName;
+  return 'Reader';
 };
 
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -258,6 +262,11 @@ export default function BookThread() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [searchedThreads, setSearchedThreads] = useState([]);
+  useEffect(() => {
+    if (!feedback) return undefined;
+    const timeout = window.setTimeout(() => setFeedback(''), 4200);
+    return () => window.clearTimeout(timeout);
+  }, [feedback]);
   const trimmedThreadTitle = threadForm.title.trim();
   const trimmedThreadContent = threadForm.content.trim();
   const isComposerSubmitDisabled = submittingThread || !trimmedThreadTitle || !trimmedThreadContent;
@@ -362,7 +371,7 @@ export default function BookThread() {
               source: payload?.source || parsedSourceRoute?.source || prevBook?.source,
               sourceId: payload?.sourceId || parsedSourceRoute?.sourceId || prevBook?.sourceId,
               bookContentAvailable,
-              previewMessage: bookContentAvailable ? null : 'No readable content available',
+              previewMessage: null,
             };
             setBook(parsedBook);
           }
@@ -897,8 +906,11 @@ export default function BookThread() {
             )}
 
             {(error || feedback) && (
-              <div className={`thread-banner ${error ? 'error' : 'success'}`}>
-                {error || feedback}
+              <div className={`thread-banner ${error ? 'error' : 'success'}`} role="status">
+                <span>{error || feedback}</span>
+                <button type="button" className="thread-banner-dismiss" onClick={() => { setError(''); setFeedback(''); }} aria-label="Dismiss notice">
+                  <X size={14} />
+                </button>
               </div>
             )}
 
@@ -936,8 +948,8 @@ export default function BookThread() {
                   : countReplies(thread.comments || []);
 
                 return (
-                  <article key={thread._id} className="thread-list-item">
-                    <button type="button" className="thread-list-button" onClick={() => handleOpenThread(thread._id, thread)}>
+                  <article key={thread._id}>
+                    <button type="button" className="thread-list-item thread-list-button" onClick={() => handleOpenThread(thread._id, thread)}>
                       <div className="thread-list-main">
                         <h3 className="thread-list-title font-serif">{thread.title}</h3>
                         <div className="thread-entry-context">
@@ -971,8 +983,11 @@ export default function BookThread() {
             </header>
 
             {(error || feedback) && (
-              <div className={`thread-banner ${error ? 'error' : 'success'}`}>
-                {error || feedback}
+              <div className={`thread-banner ${error ? 'error' : 'success'}`} role="status">
+                <span>{error || feedback}</span>
+                <button type="button" className="thread-banner-dismiss" onClick={() => { setError(''); setFeedback(''); }} aria-label="Dismiss notice">
+                  <X size={14} />
+                </button>
               </div>
             )}
 
@@ -1019,20 +1034,15 @@ export default function BookThread() {
 
             {replyingTo === `thread-${selectedThread._id}` && (
               <form
-                className="inline-reply-form top-level"
+                className="inline-reply-form top-level inline-reply-form--bare"
                 onSubmit={(event) => {
                   event.preventDefault();
                   handleSubmitReply(selectedThread._id);
                 }}
               >
-                <div className="writing-surface-copy">
-                  <span className="writing-label">Your response</span>
-                  <h2 className="font-serif">Add your response to this thread</h2>
-                  <p>Write your response</p>
-                </div>
                 <textarea
                   className="thread-textarea compact"
-                  rows={6}
+                  rows={4}
                   value={replyDrafts[`thread-${selectedThread._id}`] || ''}
                   onChange={(event) => handleReplyDraftChange(`thread-${selectedThread._id}`, event.target.value)}
                   placeholder="Add your perspective to the discussion..."
