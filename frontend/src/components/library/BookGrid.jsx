@@ -5,11 +5,6 @@ const BookGrid = ({ books = [], loading = false, error = '', onboardingHighlight
   if (loading) {
     return (
       <section className="library-grid-shell" role="status" aria-live="polite" aria-label="Finding books tailored for you">
-        <div className="library-grid-loading-note glass-panel">
-          <p className="library-grid-loading-eyebrow">Discover</p>
-          <h2>Finding books tailored for you...</h2>
-          <p>This may take a moment while we prepare recommendations you&apos;ll actually want to read.</p>
-        </div>
         <div className="library-grid">
           {Array.from({ length: 8 }).map((_, index) => <BookCard key={`skeleton-${index}`} loading skeletonDelay={index * 80} />)}
         </div>

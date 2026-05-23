@@ -10,8 +10,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "bookfriend": "npm --prefix bookfriend-server start",
-    "dev:all": "concurrently -n server,bookfriend,web -c blue,magenta,green \"npm run server\" \"npm run bookfriend\" \"npm run dev -- --host\""
+    "dev:all": "npm run dev:full"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.96.2",

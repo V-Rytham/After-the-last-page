@@ -21,35 +21,16 @@ export const resolveBookOrThrow = async (bookId) => {
   return book;
 };
 
-export const checkQuizAccess = async ({ userId, bookId }) => {
+export const checkMeetAccess = async ({ userId, bookId, source, sourceBookId }) => {
   if (!userId) {
     const error = new Error('Unauthorized.');
     error.statusCode = 401;
     throw error;
   }
 
-  await resolveBookOrThrow(bookId);
-  const progress = await UserProgress.findOne({ userId, bookId }).select('quizAttempted quizPassed score attemptedAt');
-  const access = true;
-
-  return {
-    access,
-    progress: progress
-      ? {
-          quizAttempted: Boolean(progress.quizAttempted),
-          quizPassed: Boolean(progress.quizPassed),
-          score: Number(progress.score || 0),
-          attemptedAt: progress.attemptedAt || null,
-        }
-      : null,
-  };
-};
-
-export const checkMeetAccess = async ({ userId, bookId, source, sourceBookId }) => {
-  if (!userId) {
-    const error = new Error('Unauthorized.');
-    error.statusCode = 401;
-    throw error;
+  const meetAllowRestricted = String(process.env.MEET_ALLOW_RESTRICTED || '').trim().toLowerCase() === 'true';
+  if (meetAllowRestricted) {
+    return { access: true, mode: 'override' };
   }
 
   const normalizedBookId = String(bookId || '').trim();

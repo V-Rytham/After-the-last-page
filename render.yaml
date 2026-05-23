@@ -19,10 +19,6 @@ services:
         value: https://alp-web.onrender.com
       - key: BOOKFRIEND_SERVER_URL
         value: https://alp-bookfriend.onrender.com
-      - key: QUIZ_QUESTION_ENGINE_URL
-        value: https://deterministic-question-engine-3sd2.onrender.com
-      - key: QUIZ_PASS_THRESHOLD_PERCENT
-        value: 60
       - key: RECOMMENDATIONS_SERVICE_ENABLED
         value: true
       - key: RECOMMENDATIONS_SERVICE_URL

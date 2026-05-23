@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   List,
   RotateCcw,
-  Sparkles,
   Settings2,
 } from 'lucide-react';
 import api from '../utils/api';
@@ -82,7 +81,9 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
     if (!source || !sourceId) return null;
     return { source, sourceId, composite: decoded };
   }, [bookId]);
-  const resolvedBookId = book?._id || book?.id || (isGutenbergRoute ? `gutenberg:${gutenbergId}` : bookId);
+  const resolvedBookId = book?._id
+    || book?.id
+    || (isGutenbergRoute ? String(gutenbergId || '') : (parsedSourceRoute?.composite || bookId));
 
   const fetchMoreChapters = useCallback(async () => {
     if (!isGutenbergRoute || nextCursor == null || loadingMoreChapters) return;
@@ -842,17 +843,6 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
         </div>
 
         <div className="toolbar-actions">
-          <button
-            type="button"
-            onClick={() => {
-              navigate(`/quiz/${encodeURIComponent(String(resolvedBookId))}`);
-            }}
-            className="settings-btn"
-            title="AI insights"
-          >
-            <Sparkles size={17} />
-          </button>
-
           <button type="button" onClick={openGoTo} className="settings-btn" title="Navigate">
             <List size={17} />
           </button>

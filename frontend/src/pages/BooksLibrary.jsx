@@ -17,6 +17,7 @@ const DESK_CACHE_TTL_MS = 90_000;
 const MAX_RECENT_ACTIVITY = 6;
 const MAX_RECOMMENDATIONS_PER_TYPE = 12;
 const MAX_SOCIAL_RECOMMENDATIONS = 12;
+const HAS_HISTORY_MIN_PROGRESS = 1;
 
 const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -79,6 +80,10 @@ const getLastActiveBook = (books, sessions) => getRecentActivity(books, sessions
   .find(({ session }) => Number(session?.progressPercent || 0) > 0 && Number(session?.progressPercent || 0) < 100 && !session?.isFinished)
   || null;
 
+const hasAnyReadingHistory = (sessions) => {
+  if (!sessions || typeof sessions !== 'object') return false;
+  return Object.values(sessions).some((session) => Number(session?.progressPercent || 0) >= HAS_HISTORY_MIN_PROGRESS);
+};
 
 const fetchDeskData = async () => {
   const sessions = getReadingSessionsForCurrentUser();
@@ -87,7 +92,8 @@ const fetchDeskData = async () => {
   const allBooks = Array.isArray(booksPayload) ? booksPayload.filter(Boolean) : [];
   const recentActivity = getRecentActivity(allBooks, sessions);
   const active = getLastActiveBook(allBooks, sessions);
-  const recommendationBase = active?.book || recentActivity[0]?.book || allBooks[0] || null;
+  const recommendationBase = active?.book || recentActivity[0]?.book || null;
+  const hasHistory = hasAnyReadingHistory(sessions) || recentActivity.length > 0;
 
   let recommendationError = '';
   let socialRecommendationError = '';
@@ -107,12 +113,14 @@ const fetchDeskData = async () => {
     }
   }
 
-  try {
-    const socialResponse = await withRetry(() => api.get('/recommendations/for-you'));
-    const social = Array.isArray(socialResponse?.data?.recommendations) ? socialResponse.data.recommendations : [];
-    socialRecommendations = social.slice(0, MAX_SOCIAL_RECOMMENDATIONS);
-  } catch (error) {
-    socialRecommendationError = String(error?.uiMessage || error?.message || 'Social recommendations are unavailable right now.');
+  if (hasHistory) {
+    try {
+      const socialResponse = await withRetry(() => api.get('/recommendations/for-you'));
+      const social = Array.isArray(socialResponse?.data?.recommendations) ? socialResponse.data.recommendations : [];
+      socialRecommendations = social.slice(0, MAX_SOCIAL_RECOMMENDATIONS);
+    } catch (error) {
+      socialRecommendationError = String(error?.uiMessage || error?.message || 'Social recommendations are unavailable right now.');
+    }
   }
 
   if (contentRecommendations.length === 0) {
@@ -128,6 +136,8 @@ const fetchDeskData = async () => {
     recommendationError,
     socialRecommendationError,
     socialRecommendations,
+    hasHistory,
+    hasGenres: selectedGenres.length > 0,
     fetchedAt: Date.now(),
   };
 };
@@ -170,6 +180,7 @@ const BooksLibrary = ({ currentUser }) => {
   const [error, setError] = useState('');
   const [recommendationError, setRecommendationError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [canPersonalize, setCanPersonalize] = useState(false);
 
   useEffect(() => {
     try {
@@ -201,6 +212,7 @@ const BooksLibrary = ({ currentUser }) => {
       setRecommendationError(payload.recommendationError || '');
       setSocialRecommendations(Array.isArray(payload.socialRecommendations) ? payload.socialRecommendations : []);
       setSocialRecommendationError(payload.socialRecommendationError || '');
+      setCanPersonalize(Boolean(payload.hasHistory || payload.hasGenres));
     } catch (loadError) {
       setBooks([]);
       setContentRecommendations([]);
@@ -208,6 +220,7 @@ const BooksLibrary = ({ currentUser }) => {
       setSocialRecommendations([]);
       setSessions(getReadingSessionsForCurrentUser());
       setError(String(loadError?.uiMessage || loadError?.message || 'Unable to load your desk right now.'));
+      setCanPersonalize(false);
     } finally {
       setLoading(false);
       setRecommendationLoading(false);
@@ -242,7 +255,9 @@ const BooksLibrary = ({ currentUser }) => {
   const recentActivity = useMemo(() => getRecentActivity(books, sessions), [books, sessions]);
   const sessionForBook = useCallback((book) => getBookSession(sessions, book), [sessions]);
 
-  const recommendationTitle = `Because you read ${recommendationBase?.title || currentReading?.book?.title || 'your recent books'}`;
+  const recommendationTitle = recommendationBase?.title
+    ? `Because you read ${recommendationBase.title}`
+    : 'Recommended for you';
   const recommendationLoadingTitle = 'Curating recommendations for you';
   const matchesSearchAndCategory = useCallback((book) => {
     if (!book) return false;
@@ -376,8 +391,17 @@ const BooksLibrary = ({ currentUser }) => {
             <div className="desk-section__heading">
               <h2>Recommendations</h2>
             </div>
-            <p className="desk-empty-copy">{recommendationError || socialRecommendationError || 'No recommendations available yet.'}</p>
-            <button type="button" className="desk-btn desk-btn--secondary" onClick={() => refreshDesk({ force: true })}>Retry recommendations</button>
+            {!canPersonalize ? (
+              <>
+                <p className="desk-empty-copy">Start reading (or pick genres in your Profile) to unlock recommendations.</p>
+                <a className="desk-btn desk-btn--secondary" href="/library">Browse books</a>
+              </>
+            ) : (
+              <>
+                <p className="desk-empty-copy">{recommendationError || socialRecommendationError || 'No recommendations available yet.'}</p>
+                <button type="button" className="desk-btn desk-btn--secondary" onClick={() => refreshDesk({ force: true })}>Retry recommendations</button>
+              </>
+            )}
           </section>
         )}
 

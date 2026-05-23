@@ -26,7 +26,6 @@
   background: var(--accent-soft);
 }
 
-.quiz-container,
 .preferences-container {
   width: min(100%, 42rem);
 }
@@ -35,14 +34,12 @@
   width: min(100%, 39rem);
 }
 
-.quiz-card,
 .preferences-content,
 .room-header,
 .room-main {
   box-shadow: none;
 }
 
-.quiz-card,
 .preferences-content {
   padding: clamp(1.5rem, 4vw, 2.25rem);
   border-radius: var(--radius-lg);
@@ -54,34 +51,6 @@
   padding: clamp(1.35rem, 3.5vw, 2rem);
   gap: 1rem;
   background: color-mix(in srgb, var(--surface-1) 88%, transparent);
-}
-
-.quiz-gate-banner {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 0.45rem;
-  width: fit-content;
-  padding: 0.45rem 0.85rem;
-  border-radius: var(--radius-pill);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-  border: 1px solid var(--accent-border);
-}
-
-.quiz-header {
-  display: grid;
-  justify-items: center;
-  gap: 0.35rem;
-  text-align: center;
-}
-
-.quiz-header h2 {
-  font-size: clamp(1.8rem, 4vw, 2.5rem);
-}
-
-.quiz-progress {
-  display: grid;
-  gap: 0.45rem;
 }
 
 .progress-bar {
@@ -96,18 +65,12 @@
   background: var(--accent-ink);
 }
 
-.quiz-question-area {
-  display: grid;
-  gap: 0.9rem;
-}
-
 .question-text {
   font-size: clamp(1.25rem, 3vw, 1.55rem);
   line-height: 1.35;
   color: var(--text-primary);
 }
 
-.quiz-input,
 .chat-input,
 .thread-input,
 .thread-textarea,
@@ -121,14 +84,6 @@
   outline: none;
   transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
-
-.quiz-input {
-  min-height: 11rem;
-  resize: vertical;
-  line-height: 1.65;
-}
-
-.quiz-input:focus,
 .chat-input:focus,
 .auth-input:focus,
 .wizard-input:focus {
@@ -136,34 +91,8 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-soft) 48%, transparent);
 }
 
-
-.quiz-options {
-  display: grid;
-  gap: 0.6rem;
-}
-
-.quiz-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  background: var(--surface-1);
-}
-
-.quiz-option input {
-  margin-top: 0.2rem;
-}
-
 .text-error {
   color: #c44545;
-}
-
-.quiz-footer {
-  display: flex;
-  justify-content: flex-end;
 }
 
 .meeting-pref-header {
@@ -205,6 +134,12 @@
   background: color-mix(in srgb, var(--surface-2) 34%, transparent);
   transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
   cursor: pointer;
+}
+
+.pref-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
 }
 
 .pref-card:hover {
@@ -423,6 +358,13 @@ html[data-theme='dark'] .meeting-tertiary-action {
   margin-top: 0.15rem;
 }
 
+.searching-actions {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
 .searching-progress-line {
   position: relative;
   width: 100%;
@@ -532,8 +474,19 @@ html[data-theme='dark'] .meeting-tertiary-action {
   border: 1px solid color-mix(in srgb, var(--accent-border) 68%, var(--border-soft));
   display: grid;
   place-items: center;
+  overflow: hidden;
   background: color-mix(in srgb, var(--accent-soft) 50%, var(--surface-muted));
   color: var(--accent-ink);
+}
+
+.partner-avatar img,
+.wizard-avatar img,
+.message-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: inherit;
 }
 
 .partner-copy {
@@ -860,19 +813,9 @@ html[data-theme='dark'] .meeting-tertiary-action {
     padding: 1rem 0.85rem 1.75rem;
   }
 
-  .quiz-card,
   .preferences-content {
     padding: 1.15rem 1rem;
     gap: 1rem;
-  }
-
-  .quiz-header h2 {
-    font-size: 1.6rem;
-  }
-
-  .quiz-input {
-    min-height: 8.5rem;
-    padding: 0.75rem 0.85rem;
   }
 
   .pref-options {
@@ -898,10 +841,6 @@ html[data-theme='dark'] .meeting-tertiary-action {
 @media (max-height: 620px) and (max-width: 740px) {
   .meeting-hub {
     padding-top: 0.9rem;
-  }
-
-  .quiz-input {
-    min-height: 7.5rem;
   }
 
   .room-main {
@@ -960,12 +899,21 @@ html[data-theme='dark'] .meeting-tertiary-action {
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 88%, transparent), color-mix(in srgb, var(--surface-1) 62%, transparent));
 }
 
+.meeting-hub--bookfriend .wizard-avatar {
+  width: 2.7rem;
+  height: 2.7rem;
+  border-color: color-mix(in srgb, var(--accent-border) 72%, transparent);
+  box-shadow: 0 14px 26px rgba(10, 14, 25, 0.12);
+}
+
 .meeting-hub--bookfriend .chat-messages {
   gap: 0.16rem;
   padding: clamp(1rem, 2.5vw, 1.65rem) clamp(0.95rem, 2.7vw, 1.75rem) 1.35rem;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 28%, transparent), transparent 7rem),
-    color-mix(in srgb, var(--page-bg-alt) 54%, transparent);
+    radial-gradient(circle at 14% 12%, color-mix(in srgb, var(--accent-soft) 16%, transparent), transparent 28rem),
+    radial-gradient(circle at 88% 0%, color-mix(in srgb, var(--accent-border) 12%, transparent), transparent 22rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 24%, transparent), transparent 7rem),
+    color-mix(in srgb, var(--page-bg-alt) 56%, transparent);
   scroll-behavior: smooth;
 }
 
@@ -978,15 +926,15 @@ html[data-theme='dark'] .meeting-tertiary-action {
   border-radius: 1.08rem 1.08rem 1.08rem 0.42rem;
   font-size: 0.94rem;
   line-height: 1.62;
-  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
-  border-color: color-mix(in srgb, var(--border-soft) 48%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+  border-color: color-mix(in srgb, var(--border-soft) 42%, transparent);
   color: var(--text-primary);
-  box-shadow: 0 8px 22px rgba(10, 14, 25, 0.055);
+  box-shadow: 0 10px 26px rgba(10, 14, 25, 0.06);
 }
 
 .meeting-hub--bookfriend .sent .msg-bubble {
   border-radius: 1.08rem 1.08rem 0.42rem 1.08rem;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 62%, var(--surface-1)), color-mix(in srgb, var(--accent-soft) 36%, var(--surface-2)));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 70%, var(--surface-1)), color-mix(in srgb, var(--accent-soft) 36%, var(--surface-2)));
   border-color: color-mix(in srgb, var(--accent-border) 58%, transparent);
   color: var(--text-primary);
   box-shadow: 0 10px 24px color-mix(in srgb, var(--accent-soft) 22%, transparent);

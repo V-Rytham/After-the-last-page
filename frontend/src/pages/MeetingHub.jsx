@@ -6,6 +6,7 @@ import api from '../utils/api';
 import { getOrCreateIdentity } from '../utils/identity';
 import { getApiBaseUrl } from '../utils/serviceUrls';
 import { log } from '../utils/logger';
+import bookfriendAvatar from '../assets/bookfriend-avatar.jpg';
 import './MeetingHub.css';
 
 const BOOK_READ_TIMEOUT_MS = 120000;
@@ -77,6 +78,13 @@ const MeetingHub = () => {
   const [chatInput, setChatInput] = useState('');
   const [prefType, setPrefType] = useState(initialPrefType);
   const hasUnsentDraft = chatInput.trim().length > 0;
+
+  const threadRouteId = useMemo(() => {
+    const src = String(book?.source || parsedSourceRoute?.source || '').trim().toLowerCase();
+    const srcId = String(book?.sourceId || book?.source_book_id || parsedSourceRoute?.sourceId || '').trim();
+    if (!src || !srcId) return '';
+    return `${src}:${srcId}`;
+  }, [book?.source, book?.sourceId, book?.source_book_id, parsedSourceRoute?.source, parsedSourceRoute?.sourceId]);
 
   useEffect(() => {
     roomIdRef.current = roomId;
@@ -320,7 +328,11 @@ const MeetingHub = () => {
 
     try {
       if (phase === 'searching') {
-        await api.post('/matchmaking/leave').catch(() => {});
+        const identity = getOrCreateIdentity();
+        await api.post('/matchmaking/leave', {
+          userId: identity?.userId,
+          displayName: identity?.displayName,
+        }).catch(() => {});
       }
 
       if (phase === 'connected' && roomId) {
@@ -398,7 +410,7 @@ const MeetingHub = () => {
     }
   }, [endSession, sessionIsSensitive]);
 
-	  const cleanupMedia = useCallback(() => {
+  const cleanupMedia = useCallback(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
@@ -419,6 +431,19 @@ const MeetingHub = () => {
     setMediaStatus('idle');
     setMediaError('');
   }, []);
+
+  const returnToPreferences = useCallback(async (reason = 'back') => {
+    await endSession(reason);
+    cleanupMedia();
+    setRoomId(null);
+    setMessages([]);
+    setChatInput('');
+    setPhase('preferences');
+  }, [cleanupMedia, endSession]);
+
+  useEffect(() => () => {
+    cleanupMedia();
+  }, [cleanupMedia]);
 
   const startCall = useCallback(async () => {
     if (prefType === 'text') return;
@@ -516,6 +541,7 @@ const MeetingHub = () => {
   if (!book) return <div className="p-10 text-center mt-20 font-serif">Book not found. Perhaps it's still being written?</div>;
 
   const handleStartSearch = async () => {
+    if (bookFriendStarting) return;
     if (!socketRef.current?.connected) {
       setMatchNotice('Connecting to live matching…');
       try {
@@ -564,7 +590,7 @@ const MeetingHub = () => {
     if (!book || bookFriendStarting) return;
 
     setBookFriendStarting(true);
-    setMatchNotice('');
+    setMatchNotice('Connecting to BookFriendâ€¦');
 
     try {
       const agentBookId = isObjectId
@@ -680,7 +706,7 @@ const MeetingHub = () => {
           >
             {!isMine && isFirstInGroup && (
               <div className={`message-avatar${isBookFriend ? ' message-avatar--bookfriend' : ''}`} aria-hidden="true">
-                {isBookFriend ? <Bot size={14} /> : <User size={14} />}
+                {isBookFriend ? <img src={bookfriendAvatar} alt="" /> : <User size={14} />}
               </div>
             )}
             <div className="message-content">
@@ -692,7 +718,7 @@ const MeetingHub = () => {
       })}
       {bookFriendThinking && (
         <div className="message received group-start message--thinking" role="status" aria-live="polite">
-          <div className="message-avatar message-avatar--bookfriend" aria-hidden="true"><Bot size={14} /></div>
+          <div className="message-avatar message-avatar--bookfriend" aria-hidden="true"><img src={bookfriendAvatar} alt="" /></div>
           <div className="message-content">
             <div className="msg-bubble msg-bubble--thinking">
               <span className="thinking-dot" />
@@ -732,29 +758,29 @@ const MeetingHub = () => {
             </div>
 
             <div className="pref-options" aria-label="Connection method options">
-              <button type="button" className={`pref-card ${prefType === 'text' ? 'selected' : ''}`} onClick={() => { setPrefType('text'); setMatchNotice(''); }}>
+              <button type="button" disabled={bookFriendStarting} className={`pref-card ${prefType === 'text' ? 'selected' : ''}`} onClick={() => { setPrefType('text'); setMatchNotice(''); }}>
                 <span className="pref-icon-shell"><MessageSquare className="pref-icon" size={22} strokeWidth={2.1} /></span>
                 <span className="pref-card-copy"><strong>Text Chat</strong><span>Quiet, thoughtful chat.</span></span>
               </button>
-              <button type="button" className={`pref-card ${prefType === 'voice' ? 'selected' : ''}`} onClick={() => { setPrefType('voice'); setMatchNotice(''); }}>
+              <button type="button" disabled={bookFriendStarting} className={`pref-card ${prefType === 'voice' ? 'selected' : ''}`} onClick={() => { setPrefType('voice'); setMatchNotice(''); }}>
                 <span className="pref-icon-shell"><Mic className="pref-icon" size={22} strokeWidth={2.1} /></span>
                 <span className="pref-card-copy"><strong>Voice Call</strong><span>Vocalize your thoughts securely.</span></span>
               </button>
-              <button type="button" className={`pref-card ${prefType === 'video' ? 'selected' : ''}`} onClick={() => { setPrefType('video'); setMatchNotice(''); }}>
+              <button type="button" disabled={bookFriendStarting} className={`pref-card ${prefType === 'video' ? 'selected' : ''}`} onClick={() => { setPrefType('video'); setMatchNotice(''); }}>
                 <span className="pref-icon-shell"><Video className="pref-icon" size={22} strokeWidth={2.1} /></span>
                 <span className="pref-card-copy"><strong>Video Call</strong><span>Face-to-face, masked connection.</span></span>
               </button>
             </div>
             {matchNotice && <div className="meeting-notice" role="status">{matchNotice}</div>}
             <div className="meeting-pref-actions">
-              <button className="btn-primary meeting-primary-action" disabled={!prefType || !socketReady} onClick={handleStartSearch}>
+              <button className="btn-primary meeting-primary-action" disabled={!prefType || !socketReady || bookFriendStarting} onClick={handleStartSearch}>
                 Find a reading partner <ArrowRight size={18} />
               </button>
               <button className="btn-secondary meeting-secondary-action" onClick={handleStartBookFriend} disabled={bookFriendStarting}>
-                {bookFriendStarting ? 'Connecting BookFriend…' : (<><Bot size={16} /> Chat with BookFriend</>)}
+                {bookFriendStarting ? 'Connecting BookFriend…' : (<><User size={16} /> Chat with BookFriend</>)}
               </button>
-              {isObjectId ? (
-                <button className="meeting-tertiary-action" onClick={() => navigate(`/thread/${bookId}`)}>Open the book threads instead</button>
+              {threadRouteId ? (
+                <button className="meeting-tertiary-action" disabled={bookFriendStarting} onClick={() => navigate(`/thread/${encodeURIComponent(threadRouteId)}`, { state: { book } })}>Open the book threads instead</button>
               ) : null}
             </div>
           </div>
@@ -779,6 +805,12 @@ const MeetingHub = () => {
                 <span className="searching-progress-line-fill" />
               </div>
             </div>
+
+            <div className="searching-actions">
+              <button type="button" className="btn-secondary sm" onClick={() => returnToPreferences('search-cancel')}>
+                Back
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -788,9 +820,7 @@ const MeetingHub = () => {
           <section className="room-main glass-panel">
             <header className="room-header room-header--sticky room-header--bookfriend">
               <div className="partner-info">
-                <div className="wizard-avatar" aria-hidden="true">
-                  <Bot size={18} />
-                </div>
+                <div className="wizard-avatar" aria-hidden="true"><img src={bookfriendAvatar} alt="" /></div>
                 <div className="partner-copy">
                   <div className="room-title font-serif">BookFriend</div>
                   <div className="room-subtitle text-muted">Connected · AI companion</div>
@@ -802,10 +832,7 @@ const MeetingHub = () => {
                   type="button"
                   className="btn-secondary sm btn-leave-inline"
                   onClick={() => {
-                    closeBookFriendSession();
-                    setMessages([]);
-                    setChatInput('');
-                    setPhase('preferences');
+                    returnToPreferences('leave-bookfriend');
                   }}
                 >
                   Leave
@@ -854,9 +881,7 @@ const MeetingHub = () => {
                   onClick={() => {
                     setLeavePromptBody('You will disconnect from this reader.');
                     pendingLeaveActionRef.current = () => {
-                      setRoomId(null);
-                      setMessages([]);
-                      setPhase('preferences');
+                      returnToPreferences('leave-reader');
                     };
                     setLeavePromptOpen(true);
                   }}

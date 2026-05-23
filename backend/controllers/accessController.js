@@ -1,4 +1,4 @@
-import { checkMeetAccess, checkQuizAccess } from '../services/accessService.js';
+import { checkMeetAccess } from '../services/accessService.js';
 import mongoose from 'mongoose';
 import { buildSafeErrorBody } from '../utils/runtime.js';
 import { isDegradedMode } from '../utils/degradedMode.js';
@@ -25,8 +25,8 @@ export const checkAccess = async (req, res) => {
       return res.json({ access: result.access, mode: result.mode });
     }
 
-    const result = await checkQuizAccess({ userId: req.user?._id, bookId });
-    return res.json({ access: result.access, mode: result.access ? 'completed' : 'none' });
+    // Quiz has been removed; other contexts are always allowed.
+    return res.json({ access: true, mode: 'open' });
   } catch (error) {
     const status = error.statusCode || 500;
     return res.status(status).json(buildSafeErrorBody('Failed to check access.', error));

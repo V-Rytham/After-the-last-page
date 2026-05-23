@@ -23,7 +23,6 @@ const MeetingHub = lazy(() => import('./pages/MeetingHub'));
 const BookThread = lazy(() => import('./pages/BookThread'));
 const ThreadAccessHub = lazy(() => import('./pages/ThreadAccessHub'));
 const WizardMerch = lazy(() => import('./pages/WizardMerch'));
-const BookQuiz = lazy(() => import('./pages/BookQuiz'));
 const RequestBookPage = lazy(() => import('./pages/RequestBookPage'));
 
 const AuthPage = lazy(() => import('./pages/AuthPage'));
@@ -70,7 +69,6 @@ const AppShell = ({ currentUser, onLogout, onUserUpdate, uiTheme, onThemeChange,
             <Route path="/read" element={<Navigate to="/request-book" replace />} />
             <Route path="/read/gutenberg/:gutenbergId" element={<ReadingRoom uiTheme={uiTheme} onThemeChange={onThemeChange} />} />
             <Route path="/read/:bookId" element={<ReadingRoom uiTheme={uiTheme} onThemeChange={onThemeChange} />} />
-            <Route path="/quiz/:bookId" element={<BookQuiz />} />
             <Route path="/meet/:bookId" element={<MeetingHub />} />
             <Route path="/thread/:bookId" element={<BookThread />} />
             <Route path="/merch" element={<WizardMerch />} />

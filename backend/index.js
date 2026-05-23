@@ -11,7 +11,6 @@ import agentRoutes from './routes/agentRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import registerSocketEvents from './socket/socketHandler.js';
 import accessRoutes from './routes/accessRoutes.js';
-import quizRoutes from './routes/quizRoutes.js';
 import { buildSessionRoutes } from './routes/sessionRoutes.js';
 import { buildMatchmakingRoutes } from './routes/matchmakingRoutes.js';
 import { buildMeetRoutes } from './routes/meetRoutes.js';
@@ -29,6 +28,9 @@ import passport from './config/passport.js';
 import { configurePassport } from './config/passport.js';
 import { requireDatabase } from './middleware/degradedModeMiddleware.js';
 import { buildBookThreadsRoutes } from './features/bookThreads/bookThreadsRoutes.js';
+import { createBookfriendClient } from './services/bookfriendClient.js';
+import { createBookfriendSessionManager } from './services/bookfriendSessionManager.js';
+import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -136,6 +138,7 @@ app.use(cookieParser());
 app.use(passport.initialize());
 app.use(securityHeaders);
 app.use(requestTracing);
+app.use(requestIdMiddleware);
 app.use(express.json({ limit: '7mb' }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'backend', 'uploads'), {
@@ -147,7 +150,6 @@ app.use('/uploads', express.static(path.resolve(process.cwd(), 'backend', 'uploa
 app.use(rateLimit({ windowMs: 15 * 60_000, max: 100 }));
 // Tighten common abuse targets.
 app.use('/api/users/anonymous', rateLimit({ windowMs: 60_000, max: 40 }));
-app.use('/api/quiz', rateLimit({ windowMs: 60_000, max: 60 }));
 app.use('/api/access', rateLimit({ windowMs: 60_000, max: 90 }));
 app.use('/api/threads', rateLimit({ windowMs: 60_000, max: 90 }));
 app.use('/api/recommendations', rateLimit({ windowMs: 60_000, max: 60 }));
@@ -160,6 +162,19 @@ registerSocketEvents(io, sessionManager);
 
 const { booksModule } = bootstrapFeatureModules();
 
+// Initialize BookFriend integration services
+const bookfriendClient = createBookfriendClient();
+const bookfriendSessionManager = createBookfriendSessionManager(bookfriendClient);
+
+// Store in app.locals for controller access
+app.locals.bookfriendClient = bookfriendClient;
+app.locals.sessionManager = bookfriendSessionManager;
+
+log('[SERVER] BookFriend integration services initialized', {
+  baseUrl: process.env.BOOKFRIEND_SERVER_URL || 'http://127.0.0.1:5050',
+  timeoutMs: process.env.BOOKFRIEND_SERVICE_TIMEOUT_MS || 60_000,
+});
+
 // Routes
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
@@ -167,7 +182,6 @@ app.use('/api/books', booksModule.router);
 app.use('/api', requireDatabase({ status: 503, feature: 'Threads' }), buildBookThreadsRoutes());
 app.use('/api/agent', agentRoutes);
 app.use('/api/access', accessRoutes);
-app.use('/api/quiz', quizRoutes);
 app.use('/api/session', requireDatabase({ feature: 'Realtime sessions' }), buildSessionRoutes(sessionManager));
 app.use('/api/matchmaking', requireDatabase({ feature: 'Meet' }), buildMatchmakingRoutes(sessionManager));
 app.use('/api/meet', requireDatabase({ feature: 'Meet' }), buildMeetRoutes(sessionManager));

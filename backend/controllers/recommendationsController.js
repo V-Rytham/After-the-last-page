@@ -7,6 +7,11 @@ const recommendationsClient = createMicroserviceClient({
 });
 
 const normalizeGenre = (value) => String(value || '').trim().toLowerCase();
+const normalizeLimit = (value, { min = 1, max = 50 } = {}) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.min(max, Math.max(min, parsed));
+};
 
 const serviceUnavailableError = (message) => ({
   message,
@@ -17,6 +22,7 @@ export const postRecommendations = async (req, res) => {
   try {
     const rawGenres = Array.isArray(req.body?.genres) ? req.body.genres : [];
     const normalized = Array.from(new Set(rawGenres.map(normalizeGenre).filter(Boolean)));
+    const limit = normalizeLimit(req.body?.limit);
 
     if (normalized.length === 0) {
       return res.status(400).json({ message: 'genres must be a non-empty array.' });
@@ -26,7 +32,7 @@ export const postRecommendations = async (req, res) => {
       return res.status(503).json(serviceUnavailableError('Recommendations service is disabled or not configured.'));
     }
 
-    const delegated = await recommendationsClient.post('/api/recommendations', { genres: normalized });
+    const delegated = await recommendationsClient.post('/api/recommendations', { genres: normalized, limit });
     return res.json(delegated);
   } catch (error) {
     const statusCode = Number.isFinite(error?.statusCode) ? Number(error.statusCode) : 503;

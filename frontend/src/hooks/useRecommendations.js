@@ -4,6 +4,7 @@ import api from '../utils/api';
 export default function useRecommendations(selectedGenres) {
   const [state, setState] = useState({ books: [], personalized: false, loading: false, error: '' });
   const abortRef = useRef(null);
+  const limit = 50;
 
   useEffect(() => {
     if (selectedGenres.length === 0) {
@@ -17,7 +18,7 @@ export default function useRecommendations(selectedGenres) {
 
     Promise.resolve().then(() => setState((prev) => ({ ...prev, loading: true, error: '' })));
 
-    api.post('/recommendations', { genres: selectedGenres }, { signal: controller.signal })
+    api.post('/recommendations', { genres: selectedGenres, limit }, { signal: controller.signal })
       .then(({ data }) => data)
       .then((data) => {
         const books = Array.isArray(data?.books) ? data.books : [];
