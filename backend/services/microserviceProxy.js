@@ -13,13 +13,25 @@ const normalizeBaseUrl = (value) => {
   return `https://${trimmed}`;
 };
 
+const MAX_NON_JSON_ERROR_CHARS = 2000;
+
 const readJsonSafely = async (response) => {
   const contentType = String(response.headers.get('content-type') || '').toLowerCase();
   if (contentType.includes('application/json')) {
     return response.json().catch(() => ({}));
   }
+
   const text = await response.text().catch(() => '');
-  return { message: text || 'Service returned a non-JSON response.' };
+  const snippet = text.length > MAX_NON_JSON_ERROR_CHARS ? `${text.slice(0, MAX_NON_JSON_ERROR_CHARS)}…` : text;
+  const inferred = contentType.includes('text/html')
+    ? 'Upstream service returned an HTML error page.'
+    : 'Service returned a non-JSON response.';
+
+  return {
+    message: snippet || inferred,
+    code: 'NON_JSON_UPSTREAM_RESPONSE',
+    contentType,
+  };
 };
 
 const serializeError = (error) => {
@@ -37,7 +49,21 @@ export const createMicroserviceClient = ({ envBaseUrlKey, envTimeoutMsKey, envEn
   const enabled = parseBool(process.env[envEnabledKey], Boolean(baseUrl));
   const timeoutMs = Number(process.env[envTimeoutMsKey] || 60_000);
 
-  const request = async (method, path, payload, extraHeaders = {}) => {
+  const shouldRetry = ({ method, statusCode, error }) => {
+    const normalizedMethod = String(method || '').toUpperCase();
+    const isIdempotent = normalizedMethod === 'GET' || normalizedMethod === 'HEAD';
+    if (!isIdempotent) return false;
+
+    const status = Number(statusCode || error?.statusCode || 0);
+    if (status === 502 || status === 503 || status === 504) return true;
+
+    const message = String(error?.message || '').toLowerCase();
+    return message.includes('fetch failed') || message.includes('network') || message.includes('aborted');
+  };
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const requestOnce = async (method, path, payload, extraHeaders = {}) => {
     const normalizedMethod = String(method || 'GET').toUpperCase();
     if (!enabled || !baseUrl) {
       const err = new Error(`${envBaseUrlKey} is not configured.`);
@@ -80,7 +106,7 @@ export const createMicroserviceClient = ({ envBaseUrlKey, envTimeoutMsKey, envEn
           ok: response.ok,
         });
         if (!response.ok) {
-          const error = new Error(data?.message || 'Microservice request failed.');
+          const error = new Error(data?.message || `Upstream service request failed (${response.status}).`);
           error.statusCode = response.status;
           error.payload = data;
           console.error('[MICROSERVICE_PROXY] Request failed', {
@@ -106,6 +132,35 @@ export const createMicroserviceClient = ({ envBaseUrlKey, envTimeoutMsKey, envEn
         throw error;
     } finally {
       clearTimeout(timeout);
+    }
+  };
+
+  const request = async (method, path, payload, extraHeaders = {}) => {
+    const maxRetries = 2;
+    let attempt = 0;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        return await requestOnce(method, path, payload, extraHeaders);
+      } catch (error) {
+        const statusCode = Number(error?.statusCode || 0);
+        if (attempt >= maxRetries || !shouldRetry({ method, statusCode, error })) {
+          throw error;
+        }
+
+        const delayMs = Math.min(4000, 350 * (2 ** attempt));
+        console.warn('[MICROSERVICE_PROXY] Retrying request after upstream error', {
+          method: String(method || 'GET').toUpperCase(),
+          route: path,
+          targetUrl: `${baseUrl}${path}`,
+          attempt: attempt + 1,
+          delayMs,
+          statusCode,
+        });
+        attempt += 1;
+        await sleep(delayMs);
+      }
     }
   };
 
