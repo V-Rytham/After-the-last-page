@@ -33,9 +33,12 @@ export const getApiBaseUrl = () => {
     return configured;
   }
 
-  // In local dev, prefer an explicit backend URL to avoid relying on Vite proxy wiring.
-  // This prevents hard-to-debug 404s when the frontend is started outside the repo root.
-  if (import.meta.env.DEV) {
+  const isLocalHost = typeof window !== 'undefined'
+    && /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(String(window.location?.hostname || ''));
+
+  // In local development (including local previews), prefer an explicit backend URL
+  // to avoid relying on frontend server proxy wiring.
+  if (import.meta.env.DEV || isLocalHost) {
     const devBackend = normalizeConfiguredUrl(import.meta.env.VITE_DEV_BACKEND_URL, null)
       || 'http://127.0.0.1:10000';
     return `${devBackend.replace(/\/$/, '')}/api`;
