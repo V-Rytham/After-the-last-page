@@ -87,10 +87,13 @@ api.interceptors.response.use(
       || error?.message
       || 'Request failed.';
 
+    const requestUrl = `${error?.config?.baseURL || ''}${error?.config?.url || ''}`;
+
     return Promise.reject({
       ...error,
       uiMessage: message,
       statusCode,
+      requestUrl,
     });
   },
 );
