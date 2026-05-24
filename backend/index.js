@@ -23,6 +23,7 @@ import { RealtimeSessionManager } from './services/realtimeSessionManager.js';
 import { requestTracing } from './middleware/requestLogging.js';
 import recommendationsRoutes from './routes/recommendationsRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
+import readingRoutes from './routes/readingRoutes.js';
 import { bootstrapFeatureModules } from './core/bootstrapModules.js';
 import passport from './config/passport.js';
 import { configurePassport } from './config/passport.js';
@@ -187,6 +188,7 @@ app.use('/api/matchmaking', requireDatabase({ feature: 'Meet' }), buildMatchmaki
 app.use('/api/meet', requireDatabase({ feature: 'Meet' }), buildMeetRoutes(sessionManager));
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/reading', readingRoutes);
 
 app.get('/api/health', (req, res) => {
   try {
