@@ -119,7 +119,11 @@ export default function MeetingAccessHub() {
         }
       }
 
-      setJoinNotice('Could not start this chat right now. Please try again in a moment.');
+      if (statusCode === 403) {
+        setJoinNotice(serverMessage || 'This book is not eligible for live chat yet. Try an open-access title.');
+      } else {
+        setJoinNotice(serverMessage || 'Could not start this chat right now. Please try again in a moment.');
+      }
     } finally {
       setJoiningKey('');
     }
