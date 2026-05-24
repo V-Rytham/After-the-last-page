@@ -29,8 +29,10 @@ import passport from './config/passport.js';
 import { configurePassport } from './config/passport.js';
 import { requireDatabase } from './middleware/degradedModeMiddleware.js';
 import { buildBookThreadsRoutes } from './features/bookThreads/bookThreadsRoutes.js';
-import { createBookfriendClient } from './services/bookfriendClient.js';
-import { createBookfriendSessionManager } from './services/bookfriendSessionManager.js';
+import { BookfriendClient } from './src/integrations/bookfriend/client/BookfriendClient.js';
+import { getBookfriendConfig } from './src/integrations/bookfriend/config/bookfriendConfig.js';
+import { BookfriendHealthMonitor } from './src/integrations/bookfriend/health/BookfriendHealthMonitor.js';
+import { BookfriendGatewayService } from './src/integrations/bookfriend/services/BookfriendGatewayService.js';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
 
 const app = express();
@@ -164,16 +166,17 @@ registerSocketEvents(io, sessionManager);
 const { booksModule } = bootstrapFeatureModules();
 
 // Initialize BookFriend integration services
-const bookfriendClient = createBookfriendClient();
-const bookfriendSessionManager = createBookfriendSessionManager(bookfriendClient);
+const bookfriendConfig = getBookfriendConfig();
+const bookfriendClient = new BookfriendClient(bookfriendConfig);
+const bookfriendHealthMonitor = new BookfriendHealthMonitor({ threshold: bookfriendConfig.healthFailureThreshold });
+const bookfriendGateway = new BookfriendGatewayService({ client: bookfriendClient, healthMonitor: bookfriendHealthMonitor, logger: log });
 
-// Store in app.locals for controller access
-app.locals.bookfriendClient = bookfriendClient;
-app.locals.sessionManager = bookfriendSessionManager;
+app.locals.bookfriendGateway = bookfriendGateway;
 
-log('[SERVER] BookFriend integration services initialized', {
-  baseUrl: process.env.BOOKFRIEND_SERVER_URL || 'http://127.0.0.1:5050',
-  timeoutMs: process.env.BOOKFRIEND_SERVICE_TIMEOUT_MS || 60_000,
+log('[SERVER] BookFriend gateway initialized', {
+  baseUrl: bookfriendConfig.baseUrl,
+  timeoutMs: bookfriendConfig.timeoutMs,
+  retryCount: bookfriendConfig.retryCount,
 });
 
 // Routes
