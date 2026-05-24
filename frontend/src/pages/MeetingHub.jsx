@@ -621,10 +621,17 @@ const MeetingHub = () => {
       setPhase('bookfriend');
     } catch (error) {
       const statusCode = Number(error?.response?.status || 0);
-      const serverMessage = String(error?.response?.data?.message || error?.response?.data?.error || '').trim();
+      const serverMessage = String(
+        error?.uiMessage
+        || error?.response?.data?.message
+        || error?.response?.data?.error
+        || ''
+      ).trim();
 
       if (statusCode === 401) {
         setMatchNotice('Please sign in to use BookFriend.');
+      } else if (statusCode === 404) {
+        setMatchNotice('BookFriend route is unavailable. Verify backend server + API route configuration.');
       } else if (statusCode === 503) {
         setMatchNotice(serverMessage || 'BookFriend is offline right now. Please try again shortly.');
       } else {
@@ -647,8 +654,13 @@ const MeetingHub = () => {
       log('Payload:', payload);
       const { data } = await api.post('/agent/message', payload);
       setMessages((prev) => [...prev, { text: data.response, sender: 'bookfriend', timestamp: new Date() }]);
-    } catch {
-      setMessages((prev) => [...prev, { text: 'Sorry, I lost the thread for a moment. Could you try that again?', sender: 'bookfriend', timestamp: new Date() }]);
+    } catch (error) {
+      const statusCode = Number(error?.statusCode || error?.response?.status || 0);
+      const fallbackMessage = statusCode === 404
+        ? 'BookFriend messaging route is unavailable right now. Please refresh and try again.'
+        : (error?.uiMessage || 'Sorry, I lost the thread for a moment. Could you try that again?');
+
+      setMessages((prev) => [...prev, { text: fallbackMessage, sender: 'bookfriend', timestamp: new Date() }]);
     } finally {
       setBookFriendThinking(false);
     }
