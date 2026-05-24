@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../utils/api';
 import { getReadingSessionsForCurrentUser } from '../utils/readingSession';
+import { fetchRecentReadingActivity } from '../utils/readingActivityApi';
 import CurrentReadingCard from '../components/desk/CurrentReadingCard';
 import BookCardEditorial from '../components/desk/BookCardEditorial';
 import RecommendationRow from '../components/desk/RecommendationRow';
@@ -86,9 +87,24 @@ const hasAnyReadingHistory = (sessions) => {
 };
 
 const fetchDeskData = async () => {
-  const sessions = getReadingSessionsForCurrentUser();
+  const [{ data: booksPayload }, readingPayload] = await Promise.all([
+    withRetry(() => api.get('/books')),
+    withRetry(() => fetchRecentReadingActivity()),
+  ]);
 
-  const { data: booksPayload } = await withRetry(() => api.get('/books'));
+  const sessionList = Array.isArray(readingPayload?.sessions) ? readingPayload.sessions : [];
+  const sessions = sessionList.reduce((acc, item) => {
+    if (!item?.bookId) return acc;
+    acc[String(item.bookId)] = {
+      currentPage: Number(item.currentPage || 0),
+      totalPages: Number(item.totalPages || 1),
+      progressPercent: Number(item.progressPercent || 0),
+      isFinished: Boolean(item.isFinished),
+      lastOpenedAt: item.lastOpenedAt || item.updatedAt || new Date().toISOString(),
+    };
+    return acc;
+  }, {});
+
   const allBooks = Array.isArray(booksPayload) ? booksPayload.filter(Boolean) : [];
   const recentActivity = getRecentActivity(allBooks, sessions);
   const active = getLastActiveBook(allBooks, sessions);

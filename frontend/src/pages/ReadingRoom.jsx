@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { trackBookOpened, updateReadingSession } from '../utils/readingSession';
+import { saveReadingProgress } from '../utils/readingActivityApi';
 import { UI_THEMES } from '../utils/uiThemes';
 import { PaginationEngine } from '../components/reader/PaginationEngine';
 import PageRenderer from '../components/reader/PageRenderer';
@@ -257,6 +258,27 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
       marginScale,
     };
   }, [fontFamily, fontSize, lineHeight, marginScale]);
+
+  
+  const sessionStartedAtRef = useRef(Date.now());
+  const lastPersistedSignatureRef = useRef('');
+
+  const persistReadingProgress = useCallback(async ({ useBeacon = false } = {}) => {
+    if (!book || !resolvedBookId) return;
+    const totalMs = Math.max(0, Date.now() - sessionStartedAtRef.current);
+    const signature = `${resolvedBookId}:${clampedChapter}:${Math.round(chapterPageProgress * 1000)}:${totalChapters}:${Math.round(totalMs / 1000)}`;
+    if (signature === lastPersistedSignatureRef.current && !useBeacon) return;
+    lastPersistedSignatureRef.current = signature;
+
+    await saveReadingProgress({
+      bookId: resolvedBookId,
+      bookTitle: book?.title || '',
+      currentPage: clampedChapter,
+      totalPages: totalChapters,
+      progressPercent: Math.max(0, Math.min(100, Math.round((((clampedChapter - 1) / totalChapters) + (chapterPageProgress / totalChapters)) * 100))),
+      sessionDurationMs: totalMs,
+    }, { useBeacon });
+  }, [book, chapterPageProgress, clampedChapter, resolvedBookId, totalChapters]);
 
   const readerLayoutRef = useRef(readerLayout);
   useEffect(() => {
@@ -758,6 +780,36 @@ const ReadingRoom = ({ uiTheme, onThemeChange }) => {
       });
     }
   }, [book, chapterPageProgress, clampedChapter, resolvedBookId, totalChapters]);
+
+
+  useEffect(() => {
+    if (!book || !resolvedBookId) return undefined;
+    sessionStartedAtRef.current = Date.now();
+
+    const interval = window.setInterval(() => {
+      persistReadingProgress().catch(() => {});
+    }, 10000);
+
+    const flush = () => {
+      persistReadingProgress({ useBeacon: true }).catch(() => {});
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+
+    window.addEventListener('beforeunload', flush);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('beforeunload', flush);
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      flush();
+    };
+  }, [book, persistReadingProgress, resolvedBookId]);
 
   useEffect(() => {
     document.body.classList.add('is-reading-room');
