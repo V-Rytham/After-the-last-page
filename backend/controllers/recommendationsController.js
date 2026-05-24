@@ -1,4 +1,5 @@
 import { createMicroserviceClient } from '../services/microserviceProxy.js';
+import { defaultBooks } from '../seed/defaultBooks.js';
 
 const recommendationsClient = createMicroserviceClient({
   envBaseUrlKey: 'RECOMMENDATIONS_SERVICE_URL',
@@ -18,6 +19,34 @@ const serviceUnavailableError = (message) => ({
   code: 'RECOMMENDATIONS_SERVICE_UNAVAILABLE',
 });
 
+const toFallbackRecommendation = (book) => {
+  const gutenbergId = Number(book?.gutenbergId);
+  if (!Number.isFinite(gutenbergId) || gutenbergId <= 0) return null;
+  return {
+    id: `gutenberg:${gutenbergId}`,
+    gutenbergId,
+    title: String(book?.title || 'Untitled'),
+    author: String(book?.author || 'Unknown author'),
+    reason: 'curated-fallback',
+  };
+};
+
+const buildFallbackRecommendations = ({ genres = [], limit = 12 } = {}) => {
+  const normalizedGenres = genres.map((genre) => normalizeGenre(genre)).filter(Boolean);
+  const filtered = normalizedGenres.length === 0
+    ? defaultBooks
+    : defaultBooks.filter((book) => {
+        const bookGenres = Array.isArray(book?.tags) ? book.tags.map((genre) => normalizeGenre(genre)) : [];
+        return normalizedGenres.some((genre) => bookGenres.includes(genre));
+      });
+
+  const pool = (filtered.length > 0 ? filtered : defaultBooks)
+    .map(toFallbackRecommendation)
+    .filter(Boolean);
+
+  return pool.slice(0, limit);
+};
+
 export const postRecommendations = async (req, res) => {
   try {
     const rawGenres = Array.isArray(req.body?.genres) ? req.body.genres : [];
@@ -29,17 +58,33 @@ export const postRecommendations = async (req, res) => {
     }
 
     if (!recommendationsClient.isEnabled()) {
-      return res.status(503).json(serviceUnavailableError('Recommendations service is disabled or not configured.'));
+      return res.status(200).json({
+        success: true,
+        books: buildFallbackRecommendations({ genres: normalized, limit: limit || 12 }),
+        personalized: false,
+        fallback: true,
+        code: serviceUnavailableError('Recommendations service is disabled or not configured.').code,
+      });
     }
 
     const delegated = await recommendationsClient.post('/api/recommendations', { genres: normalized, limit });
-    return res.json(delegated);
+    const books = Array.isArray(delegated?.books) ? delegated.books : [];
+    if (books.length > 0) return res.json(delegated);
+
+    return res.status(200).json({
+      success: true,
+      books: buildFallbackRecommendations({ genres: normalized, limit: limit || 12 }),
+      personalized: false,
+      fallback: true,
+    });
   } catch (error) {
-    const statusCode = Number.isFinite(error?.statusCode) ? Number(error.statusCode) : 503;
-    return res.status(statusCode).json({
+    return res.status(200).json({
+      success: true,
+      books: buildFallbackRecommendations({ genres: req.body?.genres || [], limit: normalizeLimit(req.body?.limit) || 12 }),
+      personalized: false,
+      fallback: true,
       message: String(error?.message || 'Failed to fetch recommendations.'),
       code: 'RECOMMENDATIONS_SERVICE_ERROR',
-      details: error?.payload || null,
     });
   }
 };
@@ -47,7 +92,13 @@ export const postRecommendations = async (req, res) => {
 export const getRecommendationsForYou = async (req, res) => {
   try {
     if (!recommendationsClient.isEnabled()) {
-      return res.status(503).json(serviceUnavailableError('Recommendations service is disabled or not configured.'));
+      return res.status(200).json({
+        success: true,
+        recommendations: buildFallbackRecommendations({ limit: 12 }),
+        personalized: false,
+        fallback: true,
+        code: serviceUnavailableError('Recommendations service is disabled or not configured.').code,
+      });
     }
 
     const response = await recommendationsClient.get('/api/recommendations/for-you', {
@@ -56,11 +107,13 @@ export const getRecommendationsForYou = async (req, res) => {
     });
     return res.json(response);
   } catch (error) {
-    const statusCode = Number.isFinite(error?.statusCode) ? Number(error.statusCode) : 503;
-    return res.status(statusCode).json({
+    return res.status(200).json({
+      success: true,
+      recommendations: buildFallbackRecommendations({ limit: 12 }),
+      personalized: false,
+      fallback: true,
       message: String(error?.message || 'Failed to fetch personalized recommendations.'),
       code: 'RECOMMENDATIONS_SERVICE_ERROR',
-      details: error?.payload || null,
     });
   }
 };
