@@ -1044,3 +1044,55 @@ html[data-theme='dark'] .meeting-tertiary-action {
     display: none;
   }
 }
+
+@media (max-width: 640px) {
+  .meeting-hub {
+    padding-inline: 0.85rem;
+    padding-top: 0.8rem;
+  }
+
+  .preferences-container { width: 100%; }
+
+  .preferences-content {
+    padding: 1rem 0.9rem;
+    border-radius: 0.95rem;
+    gap: 0.75rem;
+  }
+
+  .meeting-pref-header h2 {
+    font-size: clamp(1.34rem, 6vw, 1.7rem);
+    line-height: 1.12;
+  }
+
+  .meeting-pref-header p,
+  .meeting-notice {
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  .pref-card {
+    grid-template-columns: 2.15rem minmax(0, 1fr);
+    padding: 0.68rem 0.75rem;
+    border-radius: 0.78rem;
+  }
+
+  .pref-icon-shell {
+    width: 2.15rem;
+    height: 2.15rem;
+    border-radius: 0.72rem;
+  }
+
+  .pref-card-copy strong { font-size: 0.92rem; }
+  .pref-card-copy span { font-size: 0.76rem; }
+
+  .searching-container { min-height: min(62vh, 30rem); }
+
+  .searching-card {
+    padding: 1.15rem 0.85rem;
+    border-radius: 0.95rem;
+  }
+
+  .searching-title {
+    font-size: clamp(1.18rem, 5.5vw, 1.36rem);
+  }
+}

@@ -631,3 +631,40 @@
     min-height: 2.75rem;
   }
 }
+
+@media (max-width: 640px) {
+  .thread-page {
+    padding-inline: 0.82rem;
+    padding-top: 0.65rem;
+  }
+
+  .thread-shell { gap: 0.62rem; }
+
+  .salon-header { gap: 0.65rem; padding-bottom: 0.72rem; }
+
+  .thread-title {
+    font-size: clamp(1.2rem, 6vw, 1.5rem);
+    line-height: 1.16;
+  }
+
+  .salon-subtitle,
+  .thread-list-preview,
+  .thread-focus-content p,
+  .reply-content p {
+    font-size: 0.95rem;
+    line-height: 1.58;
+  }
+
+  .composer-surface,
+  .thread-list-item,
+  .thread-focus-post,
+  .thread-replies,
+  .inline-reply-form {
+    border-radius: 0.85rem;
+  }
+
+  .thread-cta {
+    width: 100%;
+    min-height: 2.55rem;
+  }
+}

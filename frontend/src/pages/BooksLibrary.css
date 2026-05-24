@@ -640,3 +640,110 @@ html[data-theme='dark'] .current-reading-card__resume {
   }
 
 }
+
+
+@media (max-width: 640px) {
+  .desk-page {
+    padding: 12px 10px 34px;
+  }
+
+  .desk-shell {
+    gap: 16px;
+  }
+
+  .desk-hero,
+  .desk-section {
+    gap: 8px;
+    padding-inline: 0;
+  }
+
+  .desk-hero h2,
+  .desk-section h2 {
+    font-size: clamp(1.12rem, 5.2vw, 1.36rem);
+    line-height: 1.2;
+  }
+
+  .desk-section__heading { gap: 6px; }
+
+  .current-reading-card {
+    min-height: 0;
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .current-reading-card__content { gap: 14px; }
+  .current-reading-card__main { gap: 12px; }
+
+  .current-reading-card__eyebrow {
+    font-size: 0.68rem;
+    margin-bottom: 6px;
+    letter-spacing: 0.1em;
+  }
+
+  .current-reading-card h3 {
+    font-size: clamp(1.28rem, 6vw, 1.65rem);
+    line-height: 1.14;
+    margin-bottom: 4px;
+  }
+
+  .current-reading-card p {
+    font-size: clamp(0.92rem, 3.8vw, 1.06rem);
+  }
+
+  .current-reading-card__footer { gap: 10px; }
+
+  .current-reading-card__progress-row {
+    font-size: 0.78rem;
+    gap: 8px;
+  }
+
+  .current-reading-card__resume {
+    min-height: 2.6rem;
+    width: 100%;
+    padding: 0 0.8rem;
+    border-radius: 11px;
+    font-size: 0.95rem;
+  }
+
+  .card-row {
+    --desk-card-gap: 12px;
+    max-width: 100%;
+    padding-bottom: 6px;
+  }
+
+  .card-row--recent,
+  .card-row--recommendations {
+    --desk-card-width: 132px;
+  }
+
+  .editorial-book-card { gap: 5px; }
+  .editorial-book-card h3 { font-size: 0.74rem; }
+  .editorial-book-card p,
+  .editorial-book-card__status { font-size: 0.74rem; }
+  .editorial-book-card__reason {
+    font-size: 0.68rem;
+    min-height: 0;
+  }
+
+  .desk-btn {
+    min-height: 2.35rem;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 430px) {
+  .desk-page {
+    padding: 10px 8px 28px;
+  }
+
+  .current-reading-card {
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .card-row--recent,
+  .card-row--recommendations {
+    --desk-card-width: 124px;
+  }
+}
