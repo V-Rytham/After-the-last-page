@@ -8,12 +8,10 @@ import useOnboarding from '../hooks/useOnboarding';
 import OnboardingTooltip from '../components/onboarding/OnboardingTooltip';
 import { getCachedSearch, setCachedSearch } from '../utils/searchCache';
 import AuthRequired from '../components/auth/AuthRequired';
-import { getApiBaseUrl } from '../utils/serviceUrls';
-import { log } from '../utils/logger';
+import api from '../utils/api';
 import './Library.css';
 
 const normalizeQuery = (value) => String(value || '').trim();
-const BASE_URL = getApiBaseUrl();
 
 export default function Library({ currentUser }) {
   const selectedGenres = useSelectedGenres();
@@ -48,19 +46,12 @@ export default function Library({ currentUser }) {
     abortRef.current = controller;
     Promise.resolve().then(() => setSearchState((prev) => ({ ...prev, loading: true, error: '' })));
 
-    const url = `${BASE_URL}/search?q=${encodeURIComponent(q)}`;
-    log('Search Query:', q);
-    log('Request URL:', url);
-
-    fetch(url, { signal: controller.signal, credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`API failed (${res.status})`);
-        }
-        return res.json();
-      })
+    api.get('/books/search', { params: { q }, signal: controller.signal })
+      .then((res) => res.data)
       .then((data) => {
-        const books = Array.isArray(data?.books) ? data.books : [];
+        const books = Array.isArray(data?.books)
+          ? data.books
+          : (Array.isArray(data?.results) ? data.results : []);
         setCachedSearch(q, books);
         Promise.resolve().then(() => setSearchState({ loading: false, error: '', books }));
 
@@ -69,8 +60,9 @@ export default function Library({ currentUser }) {
         }
       })
       .catch((err) => {
-        if (err?.name === 'AbortError') return;
-        Promise.resolve().then(() => setSearchState({ loading: false, error: err?.message || 'Search failed.', books: [] }));
+        const lowered = String(err?.message || '').toLowerCase();
+        if (err?.name === 'AbortError' || err?.name === 'CanceledError' || lowered.includes('canceled') || lowered.includes('cancelled')) return;
+        Promise.resolve().then(() => setSearchState({ loading: false, error: '', books: [] }));
       });
 
     return () => controller.abort();

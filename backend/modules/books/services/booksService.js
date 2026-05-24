@@ -81,24 +81,46 @@ export class BooksService {
 
   async searchBooks({ query }) {
     const { q } = buildSearchBooksDto({ query });
-    if (!q) return { results: [] };
+    if (!q) return { success: true, books: [], results: [] };
 
     const cached = this.searchCache.get(q);
-    if (cached) return { results: cached };
+    if (cached) return { success: true, books: cached, results: cached };
+
+    const localFallbackSearch = () => {
+      const haystack = this.repository.getCatalogEntries();
+      const normalizedQuery = q.toLowerCase();
+      return haystack
+        .filter((book) => (
+          String(book?.title || '').toLowerCase().includes(normalizedQuery)
+          || String(book?.author || '').toLowerCase().includes(normalizedQuery)
+        ))
+        .slice(0, 60)
+        .map(normalizeSearchResult)
+        .filter(Boolean);
+    };
 
     if (!searchClient.isEnabled()) {
-      const error = new Error('Search service is disabled or not configured.');
-      error.statusCode = 503;
-      throw error;
+      const fallback = localFallbackSearch();
+      this.searchCache.set(q, fallback);
+      return { success: true, books: fallback, results: fallback, fallback: true };
     }
 
-    log('[BOOKS_SEARCH] Delegating query to search microservice', { q });
-    const payload = await searchClient.get(`/api/books/search?q=${encodeURIComponent(q)}`);
-    const aggregated = Array.isArray(payload?.results) ? payload.results : [];
-    log('[BOOKS_SEARCH] Search microservice response received', { q, results: aggregated.length });
+    try {
+      log('[BOOKS_SEARCH] Delegating query to search microservice', { q });
+      const payload = await searchClient.get(`/api/books/search?q=${encodeURIComponent(q)}`);
+      const aggregated = Array.isArray(payload?.results)
+        ? payload.results
+        : (Array.isArray(payload?.books) ? payload.books : []);
+      log('[BOOKS_SEARCH] Search microservice response received', { q, results: aggregated.length });
 
-    this.searchCache.set(q, aggregated);
-    return { results: aggregated };
+      this.searchCache.set(q, aggregated);
+      return { success: true, books: aggregated, results: aggregated };
+    } catch (error) {
+      const fallback = localFallbackSearch();
+      log('[BOOKS_SEARCH] Search microservice failed; serving local fallback', { q, error: String(error?.message || error), fallbackCount: fallback.length });
+      this.searchCache.set(q, fallback);
+      return { success: true, books: fallback, results: fallback, fallback: true };
+    }
   }
 
 

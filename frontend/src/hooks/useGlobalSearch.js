@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import useDebouncedValue from './useDebouncedValue';
 import { getCachedSearch, setCachedSearch } from '../utils/searchCache';
+import api from '../utils/api';
 
 const normalizeQuery = (value) => String(value || '').trim();
 
@@ -30,15 +31,16 @@ export default function useGlobalSearch(query) {
 
     (async () => {
       try {
-        const res = await fetch(`/api/search?q=${normalized}`, { signal: controller.signal, credentials: 'include' });
-        if (!res.ok) throw new Error(`API failed (${res.status})`);
-        const data = await res.json();
-        const books = Array.isArray(data?.books) ? data.books : [];
+        const { data } = await api.get('/books/search', { params: { q: normalized }, signal: controller.signal });
+        const books = Array.isArray(data?.books)
+          ? data.books
+          : (Array.isArray(data?.results) ? data.results : []);
         setCachedSearch(normalized, books);
         Promise.resolve().then(() => setState({ loading: false, error: '', books }));
       } catch (err) {
-        if (err?.name === 'AbortError') return;
-        Promise.resolve().then(() => setState({ loading: false, error: err?.message || 'Search failed.', books: [] }));
+        const lowered = String(err?.message || '').toLowerCase();
+        if (err?.name === 'AbortError' || err?.name === 'CanceledError' || lowered.includes('canceled') || lowered.includes('cancelled')) return;
+        Promise.resolve().then(() => setState({ loading: false, error: '', books: [] }));
       }
     })();
 

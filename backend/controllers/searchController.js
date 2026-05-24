@@ -10,25 +10,23 @@ export const getSearch = async (req, res) => {
   try {
     const q = String(req.query?.q || '').trim();
     if (!q) {
-      return res.json({ books: [] });
+      return res.json({ success: true, books: [] });
     }
 
     if (!searchClient.isEnabled()) {
-      return res.status(503).json({
-        message: 'Search service is disabled or not configured.',
-        code: 'SEARCH_SERVICE_UNAVAILABLE',
-      });
+      return res.json({ success: true, books: [] });
     }
 
     const payload = await searchClient.get(`/api/search?q=${encodeURIComponent(q)}`);
     const books = Array.isArray(payload?.books) ? payload.books : [];
-    return res.json({ books });
+    return res.json({ success: true, books });
   } catch (error) {
-    const statusCode = Number.isFinite(error?.statusCode) ? Number(error.statusCode) : 503;
-    return res.status(statusCode).json({
+    return res.json({
+      success: true,
+      books: [],
+      fallback: true,
       message: String(error?.message || 'Search failed.'),
       code: 'SEARCH_SERVICE_ERROR',
-      details: error?.payload || null,
     });
   }
 };
