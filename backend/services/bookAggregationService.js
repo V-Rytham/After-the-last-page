@@ -435,26 +435,66 @@ export const splitCompositeSourceId = (value) => {
 
 const archivePublicDomainCache = new Map();
 
-export const canCreateArchiveRooms = async ({ source, sourceId }) => {
+const summarizeArchiveEligibility = ({ source, sourceId, enriched, cached = false, error = null }) => {
+  const metadata = enriched?.metadata?.metadata || {};
+  const summary = {
+    source,
+    sourceId,
+    bookFound: Boolean(enriched?.metadata),
+    metadataLoaded: Boolean(enriched?.metadata?.metadata),
+    isPublicDomain: Boolean(enriched?.isPublicDomain),
+    rights: metadata?.rights ?? null,
+    licenseurl: metadata?.licenseurl ?? null,
+    access: metadata?.access ?? metadata?.access_restricted ?? null,
+    availability: metadata?.availability ?? null,
+    sourceField: metadata?.source ?? null,
+    readable: Boolean(enriched?.readable),
+    formats: Array.isArray(enriched?.formats) ? enriched.formats : [],
+    eligible: Boolean(enriched?.isPublicDomain),
+    reason: error
+      ? `metadata lookup failed: ${error?.name || 'Error'} ${error?.message || ''}`.trim()
+      : (enriched?.isPublicDomain ? 'public-domain rights/license detected' : 'no public-domain rights/license detected'),
+    cached,
+  };
+  log(`[ARCHIVE][ELIGIBILITY] ${JSON.stringify(summary)}`);
+  return summary;
+};
+
+export const evaluateArchiveRoomEligibility = async ({ source, sourceId, timeoutMs = 5000 } = {}) => {
   const normalizedSource = String(source || '').trim().toLowerCase();
-  if (normalizedSource !== SOURCE_ARCHIVE && normalizedSource !== SOURCE_INTERNET_ARCHIVE) return true;
+  if (normalizedSource !== SOURCE_ARCHIVE && normalizedSource !== SOURCE_INTERNET_ARCHIVE) {
+    return { eligible: true, reason: 'non-archive source' };
+  }
 
   const id = String(sourceId || '').trim();
-  if (!id) return false;
+  if (!id) {
+    const summary = { source: normalizedSource, sourceId: id, eligible: false, reason: 'missing archive identifier' };
+    log(`[ARCHIVE][ELIGIBILITY] ${JSON.stringify(summary)}`);
+    return summary;
+  }
 
   const cached = archivePublicDomainCache.get(id);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached && cached.expiresAt > Date.now()) {
+    summarizeArchiveEligibility({ source: normalizedSource, sourceId: id, enriched: cached.enriched, cached: true });
+    return { ...cached.summary, cached: true };
+  }
 
   try {
-    const enriched = await enrichArchiveReadability({ id, sourceId: id, source: SOURCE_ARCHIVE }, { timeoutMs: 1500 });
-    const allowed = Boolean(enriched?.isPublicDomain && enriched?.readable);
-    archivePublicDomainCache.set(id, { value: allowed, expiresAt: Date.now() + 5 * 60 * 1000 });
-    if (!allowed) logArchiveMetric('archive_skipped_non_public_domain');
-    return allowed;
-  } catch {
+    const enriched = await enrichArchiveReadability({ id, sourceId: id, source: SOURCE_ARCHIVE }, { timeoutMs });
+    const summary = summarizeArchiveEligibility({ source: normalizedSource, sourceId: id, enriched });
+    archivePublicDomainCache.set(id, { summary, enriched, expiresAt: Date.now() + 5 * 60 * 1000 });
+    if (!summary.eligible) logArchiveMetric('archive_skipped_non_public_domain');
+    return summary;
+  } catch (error) {
+    const summary = summarizeArchiveEligibility({ source: normalizedSource, sourceId: id, enriched: null, error });
     logArchiveMetric('archive_failed_fetch');
-    return false;
+    return summary;
   }
+};
+
+export const canCreateArchiveRooms = async ({ source, sourceId }) => {
+  const summary = await evaluateArchiveRoomEligibility({ source, sourceId });
+  return Boolean(summary?.eligible);
 };
 
 export const SOURCE_NAMES = {
