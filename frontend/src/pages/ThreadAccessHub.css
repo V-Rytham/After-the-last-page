@@ -136,7 +136,7 @@
 
 .thread-access-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.7rem;
   padding: 1rem;
@@ -156,6 +156,39 @@
   transform: translateY(-2px);
   border-color: var(--border-strong);
   box-shadow: 0 16px 30px rgba(10, 15, 28, 0.09);
+}
+
+.thread-access-cover {
+  width: 3.45rem;
+  aspect-ratio: 2 / 3;
+  border-radius: 0.55rem;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(20, 16, 12, 0.06), rgba(20, 16, 12, 0.2)), var(--book-accent);
+  box-shadow: 0 8px 16px rgba(20, 15, 10, 0.16);
+  position: relative;
+}
+
+.thread-access-cover-image,
+.thread-access-cover-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+.thread-access-cover-image {
+  object-fit: cover;
+}
+
+.thread-access-cover-fallback {
+  position: relative;
+}
+
+.thread-access-cover-spine {
+  position: absolute;
+  top: 0.55rem;
+  bottom: 0.55rem;
+  left: 0.5rem;
+  width: 1px;
+  background: rgba(255, 248, 236, 0.28);
 }
 
 .thread-access-card-body {
@@ -233,12 +266,13 @@
 
 @media (max-width: 560px) {
   .thread-access-card {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
   }
 
   .thread-access-actions {
-    justify-items: start;
+    grid-column: 1 / -1;
+    justify-items: stretch;
   }
 }
 
