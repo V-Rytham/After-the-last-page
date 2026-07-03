@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Search } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
 import normalizeSearchResults from '../utils/normalizeSearchResults';
+import BookCoverArt from '../components/books/BookCoverArt';
 import api from '../utils/api';
 import './ThreadAccessHub.css';
 
@@ -100,6 +101,16 @@ export default function ThreadAccessHub() {
 
           return (
             <article key={threadRouteId} className="thread-access-card glass-panel">
+              <div className="thread-access-cover" style={{ '--book-accent': book.coverColor || '#6f614d' }}>
+                <BookCoverArt
+                  book={book}
+                  imgClassName="thread-access-cover-image"
+                  fallbackClassName="thread-access-cover-fallback"
+                  showSpine
+                  showPattern={false}
+                  spineClassName="thread-access-cover-spine"
+                />
+              </div>
               <div className="thread-access-card-body">
                 <h3 className="thread-access-title font-serif">{book.title}</h3>
                 <p className="thread-access-author">{book.author}</p>

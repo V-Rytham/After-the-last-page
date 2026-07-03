@@ -618,6 +618,10 @@
     grid-template-columns: 1fr;
   }
 
+  .salon-book-cover {
+    display: none;
+  }
+
   .nexus-toolbar,
   .thread-replies-heading,
   .composer-actions {
