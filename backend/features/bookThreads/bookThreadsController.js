@@ -23,10 +23,16 @@ const getIdentityFromRequest = (req, { required = false } = {}) => {
 
 const sendSuccess = (res, data, statusCode = 200) => res.status(statusCode).json({ success: true, data, error: null });
 
+const getBookMetadataHints = (req) => ({
+  title: toCleanString(req.body?.bookTitle || req.query?.title, 240),
+  author: toCleanString(req.body?.bookAuthor || req.query?.author, 240),
+  coverImage: toCleanString(req.body?.bookCoverImage || req.query?.coverImage, 2000),
+});
+
 export const createThread = async (req, res) => {
   try {
     const identity = getIdentityFromRequest(req, { required: true });
-    const book = await resolveBookOrThrow(req.params.bookId);
+    const book = await resolveBookOrThrow(req.params.bookId, getBookMetadataHints(req));
     console.warn('[THREADS] create request received', {
       bookId: String(book._id),
       userId: identity.userId,
@@ -51,7 +57,7 @@ export const createThread = async (req, res) => {
 
 export const listThreadsByBook = async (req, res) => {
   try {
-    const book = await resolveBookOrThrow(req.params.bookId);
+    const book = await resolveBookOrThrow(req.params.bookId, getBookMetadataHints(req));
     const payload = await service.listThreadsByBook({ bookId: book._id, query: req.query });
     return sendSuccess(res, payload);
   } catch (error) {

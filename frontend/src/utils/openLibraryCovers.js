@@ -40,6 +40,7 @@ export const getOpenLibraryCoverUrl = (book) => {
   if (!book) return null;
 
   if (book.coverImage) return book.coverImage;
+  if (book.cover) return book.cover;
 
   const coverId = getCoverId(book);
   if (coverId) {

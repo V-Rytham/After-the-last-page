@@ -50,6 +50,22 @@ const normalizeObjectIdList = (values) => {
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const uniqueObjectIdList = (values) => {
+  const seen = new Set();
+  const normalized = [];
+
+  for (const value of values || []) {
+    const objectId = toObjectIdOrNull(value);
+    if (!objectId) continue;
+    const asString = String(objectId);
+    if (seen.has(asString)) continue;
+    seen.add(asString);
+    normalized.push(objectId);
+  }
+
+  return normalized;
+};
+
 const toThreadListItem = ({ thread, rootMessage }) => ({
   id: normalizeId(thread._id),
   _id: normalizeId(thread._id),
@@ -99,16 +115,38 @@ export class BookThreadsService {
       return { items: [] };
     }
 
-    const safeQuery = escapeRegex(raw);
-    const matcher = { $regex: safeQuery, $options: 'i' };
-    const dbQuery = {
-      $or: [
-        { title: matcher },
-        { displayName: matcher },
-      ],
-    };
+    const regex = new RegExp(escapeRegex(raw), 'i');
 
-    const threads = await BookThread.find(dbQuery)
+    const [threadMatches, messageMatches] = await Promise.all([
+      BookThread.find({
+        $or: [
+          { title: regex },
+          { displayName: regex },
+        ],
+      })
+        .select('_id')
+        .lean(),
+      BookThreadMessage.find({
+        $or: [
+          { content: regex },
+          { displayName: regex },
+        ],
+      })
+        .select('threadId')
+        .limit(200)
+        .lean(),
+    ]);
+
+    const threadIds = uniqueObjectIdList([
+      ...threadMatches.map((thread) => thread?._id),
+      ...messageMatches.map((message) => message?.threadId),
+    ]);
+
+    if (!threadIds.length) {
+      return { items: [] };
+    }
+
+    const threads = await BookThread.find({ _id: mongoose.trusted({ $in: threadIds }) })
       .sort({ lastMessageAt: -1, _id: -1 })
       .limit(20)
       .lean();

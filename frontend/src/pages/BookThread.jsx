@@ -97,6 +97,97 @@ const unwrapApiData = (response) => {
   return payload;
 };
 
+const normalizeBookText = (value, fallback = '') => {
+  const normalized = String(value || '').trim();
+  return normalized || fallback;
+};
+
+const normalizeBookCover = (value) => {
+  const normalized = String(value || '').trim();
+  return normalized || '';
+};
+
+const normalizeBookFromState = (value, parsedSourceRoute) => {
+  if (!value || typeof value !== 'object') return null;
+
+  const source = normalizeBookText(value.source || parsedSourceRoute?.source).toLowerCase();
+  const sourceId = normalizeBookText(value.sourceId || value.source_book_id || parsedSourceRoute?.sourceId);
+  if (!source || !sourceId) return null;
+
+  return {
+    ...value,
+    source,
+    sourceId,
+    source_book_id: sourceId,
+    title: normalizeBookText(value.title, 'Untitled'),
+    author: normalizeBookText(value.author, 'Unknown author'),
+    coverImage: normalizeBookCover(value.coverImage || value.cover),
+  };
+};
+
+const isWeakBookValue = (value, fallbacks = []) => {
+  const normalized = normalizeBookText(value).toLowerCase();
+  if (!normalized) return true;
+  return fallbacks.map((entry) => String(entry).trim().toLowerCase()).includes(normalized);
+};
+
+const mergeBookRecords = (currentBook, incomingBook, parsedSourceRoute) => {
+  const existing = currentBook && typeof currentBook === 'object' ? currentBook : {};
+  const incoming = incomingBook && typeof incomingBook === 'object' ? incomingBook : {};
+  const nextSource = normalizeBookText(incoming.source || incoming.source_book_source || existing.source || parsedSourceRoute?.source).toLowerCase();
+  const nextSourceId = normalizeBookText(incoming.sourceId || incoming.source_book_id || existing.sourceId || parsedSourceRoute?.sourceId);
+
+  const existingTitle = normalizeBookText(existing.title);
+  const incomingTitle = normalizeBookText(incoming.title);
+  const existingAuthor = normalizeBookText(existing.author);
+  const incomingAuthor = normalizeBookText(
+    incoming.author
+    || incoming.creators?.[0]?.name
+    || incoming.authors?.[0]?.name,
+  );
+  const existingCover = normalizeBookCover(existing.coverImage || existing.cover);
+  const incomingCover = normalizeBookCover(
+    incoming.coverImage
+    || incoming.cover
+    || incoming.formats?.['image/jpeg']
+    || incoming.formats?.['image/png'],
+  );
+
+  return {
+    ...existing,
+    ...incoming,
+    source: nextSource,
+    sourceId: nextSourceId,
+    source_book_id: nextSourceId,
+    title: isWeakBookValue(incomingTitle, ['untitled', 'preview unavailable']) && existingTitle
+      ? existingTitle
+      : normalizeBookText(incomingTitle || existingTitle, 'Untitled'),
+    author: isWeakBookValue(incomingAuthor, ['unknown author', 'unknown']) && existingAuthor
+      ? existingAuthor
+      : normalizeBookText(incomingAuthor || existingAuthor, 'Unknown author'),
+    coverImage: incomingCover || existingCover || '',
+  };
+};
+
+const buildBookMetadataParams = (book) => {
+  const params = {};
+  const title = normalizeBookText(book?.title);
+  const author = normalizeBookText(book?.author);
+  const coverImage = normalizeBookCover(book?.coverImage || book?.cover);
+
+  if (title) params.title = title;
+  if (author) params.author = author;
+  if (coverImage) params.coverImage = coverImage;
+
+  return params;
+};
+
+const shouldRetryThreadRequest = (error) => {
+  const statusCode = Number(error?.statusCode || 0);
+  if (!statusCode) return true;
+  return statusCode === 429 || statusCode === 502 || statusCode === 503 || statusCode === 504;
+};
+
 const renderRichText = (text) => text
   .split(/\n{2,}/)
   .map((paragraph) => paragraph.trim())
@@ -246,9 +337,29 @@ export default function BookThread() {
     const identity = getOrCreateIdentity();
     return identity?.userId ? String(identity.userId) : null;
   }, []);
-  const [book, setBook] = useState(null);
+  const routeStateBook = useMemo(
+    () => normalizeBookFromState(location?.state?.book, parsedSourceRoute),
+    [location?.state?.book, parsedSourceRoute],
+  );
+  const [book, setBook] = useState(() => {
+    if (isCustomThread) {
+      const title = customThreadTitle || 'Untitled';
+      const key = canonicalizeThreadKey(title);
+      return {
+        _id: threadBookKey,
+        id: threadBookKey,
+        title,
+        author: '',
+        source: 'custom',
+        sourceId: key,
+        source_book_id: key,
+        coverImage: '',
+      };
+    }
+    return routeStateBook;
+  });
   const [threads, setThreads] = useState([]);
-  const [pageStatus, setPageStatus] = useState('loading');
+  const [threadsStatus, setThreadsStatus] = useState('loading');
   const [showComposer, setShowComposer] = useState(false);
   const [threadForm, setThreadForm] = useState(initialThreadForm);
   const [selectedThreadId, setSelectedThreadId] = useState(null);
@@ -273,131 +384,123 @@ export default function BookThread() {
   const normalizedThreadSearchQuery = String(threadSearchQuery || '').trim();
   const isSearchActive = Boolean(normalizedThreadSearchQuery);
 
-  const fetchThreadsWithRetry = async (bookKey) => {
+  const fetchThreadsWithRetry = async (bookKey, metadataParams = {}) => {
     let lastError = null;
     for (let attempt = 1; attempt <= THREAD_FETCH_MAX_ATTEMPTS; attempt += 1) {
       try {
         const response = await api.get(`/books/${encodeURIComponent(bookKey)}/threads`, {
-          params: { page: 1, limit: 25 },
+          params: { page: 1, limit: 25, ...metadataParams },
         });
         return unwrapApiData(response);
       } catch (requestError) {
         lastError = requestError;
-        if (attempt < THREAD_FETCH_MAX_ATTEMPTS) {
+        if (attempt < THREAD_FETCH_MAX_ATTEMPTS && shouldRetryThreadRequest(requestError)) {
           await wait(THREAD_FETCH_RETRY_MS * attempt);
+          continue;
         }
+        break;
       }
     }
     throw lastError;
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      setPageStatus('loading');
+    if (isCustomThread) {
+      const title = customThreadTitle || 'Untitled';
+      const key = canonicalizeThreadKey(title);
+      setBook({
+        _id: threadBookKey,
+        id: threadBookKey,
+        title,
+        author: '',
+        source: 'custom',
+        sourceId: key,
+        source_book_id: key,
+        coverImage: '',
+      });
+      return;
+    }
+
+    if (routeStateBook) {
+      setBook((prev) => mergeBookRecords(prev, routeStateBook, parsedSourceRoute));
+    }
+  }, [customThreadTitle, isCustomThread, parsedSourceRoute, routeStateBook, threadBookKey]);
+
+  useEffect(() => {
+    const fetchThreads = async () => {
+      setThreadsStatus('loading');
       setError('');
 
-      const bookRequest = (() => {
-        if (isCustomThread) {
-          const title = customThreadTitle || 'Untitled';
-          const key = canonicalizeThreadKey(title);
-          setBook({
-            _id: threadBookKey,
-            id: threadBookKey,
-            title,
-            author: '',
-            source: 'custom',
-            sourceId: key,
-            coverImage: null,
-          });
-          return Promise.resolve({ data: null });
-        }
-
-        const fromState = location?.state?.book;
-        if (fromState && typeof fromState === 'object' && fromState.title) {
-          setBook((prev) => ({ ...(prev || {}), ...fromState }));
-        }
-
-        if (parsedSourceRoute) {
-          return api.get('/books/read', {
-            timeout: BOOK_READ_TIMEOUT_MS,
-            params: {
-              source: parsedSourceRoute.source,
-              id: parsedSourceRoute.sourceId,
-              maxChapters: 1,
-              processingBudgetMs: 7000,
-            },
-          });
-        }
-
-        return api.get(`/books/${encodeURIComponent(bookId)}`);
-      })();
-
-      const threadsRequest = isCustomThread
-        ? Promise.resolve({ items: [] })
-        : fetchThreadsWithRetry(threadBookKey);
-
-      const [bookResult, threadsResult] = await Promise.allSettled([
-        bookRequest,
-        threadsRequest,
-      ]);
-
-      if (bookResult.status === 'fulfilled') {
-        if (!isCustomThread) {
-          const payload = bookResult.value?.data?.data || bookResult.value?.data;
-          if (payload && typeof payload === 'object') {
-            const prevBook = (location?.state?.book && typeof location.state.book === 'object') ? location.state.book : null;
-            const sourceBook = payload?.book && typeof payload.book === 'object' ? payload.book : payload;
-            const title = sourceBook?.title || payload?.title || prevBook?.title || 'Untitled';
-            const author = sourceBook?.creators?.[0]?.name
-              || sourceBook?.authors?.[0]?.name
-              || sourceBook?.author
-              || payload?.author
-              || prevBook?.author
-              || 'Unknown author';
-            const cover = sourceBook?.formats?.['image/jpeg']
-              || sourceBook?.formats?.['image/png']
-              || sourceBook?.coverImage
-              || payload?.coverImage
-              || prevBook?.coverImage
-              || null;
-            const bookContentAvailable = Boolean(sourceBook?.formats?.['text/html'] || sourceBook?.formats?.['text/plain']);
-            const parsedBook = {
-              ...(prevBook || {}),
-              ...payload,
-              ...sourceBook,
-              title: String(title).trim() || 'Untitled',
-              author: String(author).trim() || 'Unknown author',
-              coverImage: cover,
-              source: payload?.source || parsedSourceRoute?.source || prevBook?.source,
-              sourceId: payload?.sourceId || parsedSourceRoute?.sourceId || prevBook?.sourceId,
-              bookContentAvailable,
-              previewMessage: null,
-            };
-            setBook(parsedBook);
-          }
-        }
-      } else {
-        console.error('Failed to fetch book:', bookResult.reason);
-        setBook(null);
+      if (isCustomThread) {
+        setThreads([]);
+        setThreadsStatus('ready');
+        return;
       }
 
-      if (threadsResult.status === 'fulfilled') {
-        const payload = threadsResult.value;
+      try {
+        const payload = await fetchThreadsWithRetry(threadBookKey, buildBookMetadataParams(routeStateBook));
         const normalized = Array.isArray(payload?.items)
           ? payload.items
           : (Array.isArray(payload) ? payload : []);
         setThreads(normalized);
-        setPageStatus('ready');
-      } else {
-        console.error('Failed to fetch thread data:', threadsResult.reason);
+      } catch (requestError) {
+        console.error('Failed to fetch thread data:', requestError);
         setThreads([]);
         setError('The discussion room is unavailable right now.');
-        setPageStatus('ready');
+      } finally {
+        setThreadsStatus('ready');
       }
     };
 
-    fetchData();
-  }, [bookId, customThreadTitle, isCustomThread, location?.state?.book, parsedSourceRoute, threadBookKey]);
+    fetchThreads();
+  }, [isCustomThread, routeStateBook, threadBookKey]);
+
+  useEffect(() => {
+    if (isCustomThread || !parsedSourceRoute) return undefined;
+
+    const needsMetadata = !normalizeBookText(book?.title)
+      || isWeakBookValue(book?.title, ['untitled', 'preview unavailable'])
+      || !normalizeBookText(book?.author)
+      || isWeakBookValue(book?.author, ['unknown author', 'unknown'])
+      || !normalizeBookCover(book?.coverImage || book?.cover);
+
+    if (!needsMetadata && routeStateBook) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const fetchBookMetadata = async () => {
+      try {
+        const response = await api.get('/books/read', {
+          timeout: BOOK_READ_TIMEOUT_MS,
+          params: {
+            source: parsedSourceRoute.source,
+            id: parsedSourceRoute.sourceId,
+            metadataOnly: true,
+            ...buildBookMetadataParams(routeStateBook || book),
+          },
+        });
+
+        if (cancelled) return;
+
+        const payload = response?.data?.data || response?.data;
+        if (payload && typeof payload === 'object') {
+          setBook((prev) => mergeBookRecords(prev, payload, parsedSourceRoute));
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          console.error('Failed to fetch book metadata:', requestError);
+        }
+      }
+    };
+
+    fetchBookMetadata();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [book?.author, book?.coverImage, book?.title, isCustomThread, parsedSourceRoute, routeStateBook]);
 
   useEffect(() => {
     if (!isSearchActive) {
@@ -795,7 +898,7 @@ export default function BookThread() {
     navigate('/threads', { replace: true });
   };
 
-  if (pageStatus === 'loading') {
+  if (!book && threadsStatus === 'loading') {
     return (
       <div className="thread-loader" role="status" aria-live="polite" aria-label="Opening the discussion room">
         <p>
@@ -969,7 +1072,11 @@ export default function BookThread() {
               }) : (
                 <div className="empty-state">
                   <ScrollText size={22} />
-                  <h3 className="font-serif">{isSearchActive ? 'No threads found.' : 'No discussions yet.'}</h3>
+                  <h3 className="font-serif">
+                    {threadsStatus === 'loading'
+                      ? 'Loading discussions...'
+                      : (isSearchActive ? 'No threads found.' : 'No discussions yet.')}
+                  </h3>
                 </div>
               )}
             </section>

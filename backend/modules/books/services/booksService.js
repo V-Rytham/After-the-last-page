@@ -30,6 +30,9 @@ const toStableBookShape = (book) => {
   if (!Number.isFinite(gutenbergId) || gutenbergId <= 0) return null;
 
   const objectId = book?._id ? String(book._id) : null;
+  const source = String(book?.source || (gutenbergId ? 'gutenberg' : '')).trim().toLowerCase();
+  const sourceId = String(book?.sourceId || (gutenbergId ? gutenbergId : '')).trim();
+  const coverImage = String(book?.coverImage || '').trim();
   return {
     ...book,
     id: objectId || `gutenberg:${gutenbergId}`,
@@ -37,6 +40,10 @@ const toStableBookShape = (book) => {
     gutenbergId,
     title: String(book?.title || 'Untitled'),
     author: String(book?.author || 'Unknown author'),
+    source,
+    sourceId,
+    coverImage,
+    cover: coverImage,
   };
 };
 
@@ -50,6 +57,54 @@ const mapReadErrorMessage = (statusCode) => {
   if (statusCode === 504) return 'This book is large and taking longer than expected.';
   return 'Unable to fetch this book right now. Please retry.';
 };
+
+const normalizeText = (value, fallback = '') => {
+  const normalized = String(value || '').trim();
+  return normalized || fallback;
+};
+
+const normalizeCoverImage = (value) => String(value || '').trim();
+
+const isTruthyFlag = (value) => ['1', 'true', 'yes', 'on'].includes(String(value ?? '').trim().toLowerCase());
+
+const buildGutenbergCover = (gutenbergId) => {
+  const normalized = String(gutenbergId || '').trim();
+  if (!/^\d+$/.test(normalized)) return '';
+  return `https://www.gutenberg.org/cache/epub/${normalized}/pg${normalized}.cover.medium.jpg`;
+};
+
+const extractCoverImage = ({ payload, source, sourceId, storedCoverImage = '', hintedCoverImage = '' }) => {
+  const payloadCover = normalizeCoverImage(
+    payload?.coverImage
+    || payload?.meta?.formats?.['image/jpeg']
+    || payload?.meta?.formats?.['image/png'],
+  );
+  if (payloadCover) return payloadCover;
+
+  if (normalizeCoverImage(storedCoverImage)) return normalizeCoverImage(storedCoverImage);
+  if (normalizeCoverImage(hintedCoverImage)) return normalizeCoverImage(hintedCoverImage);
+  if (String(source || '').trim().toLowerCase() === 'gutenberg') return buildGutenbergCover(sourceId);
+  return '';
+};
+
+const buildMetadataOnlyResponse = ({ source, sourceId, book, availability = 'unknown', availabilityNote = null }) => ({
+  success: true,
+  source,
+  sourceId,
+  availability,
+  availabilityNote,
+  coverImage: normalizeCoverImage(book?.coverImage),
+  title: normalizeText(book?.title, 'Untitled'),
+  author: normalizeText(book?.author, 'Unknown author'),
+  data: {
+    title: normalizeText(book?.title, 'Untitled'),
+    author: normalizeText(book?.author, 'Unknown author'),
+    chapters: [],
+    coverImage: normalizeCoverImage(book?.coverImage),
+    availability,
+    availabilityNote,
+  },
+});
 
 export class BooksService {
   constructor({ repository }) {
@@ -132,7 +187,7 @@ export class BooksService {
       throw error;
     }
 
-    const book = await this.repository.findBookByObjectId(id, 'title author gutenbergId');
+    const book = await this.repository.findBookByObjectId(id, 'title author gutenbergId source sourceId coverImage');
     if (!book) {
       const error = new Error('Book not found');
       error.statusCode = 404;
@@ -149,7 +204,7 @@ export class BooksService {
       throw error;
     }
 
-    const book = await this.repository.findBookByObjectId(id, 'title author gutenbergId');
+    const book = await this.repository.findBookByObjectId(id, 'title author gutenbergId source sourceId coverImage');
     if (!book) {
       const error = new Error('Book not found.');
       error.statusCode = 404;
@@ -157,10 +212,13 @@ export class BooksService {
     }
 
     const payload = await readGutenbergBookStateless(book.gutenbergId, this.buildReaderOptions(query));
-    const persisted = await this.repository.upsertMetadata({
-      gutenbergId: payload.gutenbergId,
+    const persisted = await this.repository.upsertSourceBook({
+      source: this.repository.getSourceNames().SOURCE_GUTENBERG,
+      sourceId: String(payload.gutenbergId),
       title: payload.title,
       author: payload.author,
+      coverImage: buildGutenbergCover(payload.gutenbergId),
+      gutenbergId: payload.gutenbergId,
     });
 
     return this.buildReadResponse({
@@ -168,6 +226,7 @@ export class BooksService {
       bookId: persisted?._id ? String(persisted._id) : String(book._id),
       source: this.repository.getSourceNames().SOURCE_GUTENBERG,
       sourceId: String(payload.gutenbergId),
+      coverImage: buildGutenbergCover(payload.gutenbergId),
     });
   }
 
@@ -207,10 +266,13 @@ export class BooksService {
     const payload = await readGutenbergBookStateless(gutenbergId, this.buildReaderOptions(query));
     const persisted = isDegradedMode()
       ? null
-      : await this.repository.upsertMetadata({
-          gutenbergId: payload.gutenbergId,
+      : await this.repository.upsertSourceBook({
+          source: this.repository.getSourceNames().SOURCE_GUTENBERG,
+          sourceId: String(payload.gutenbergId),
           title: payload.title,
           author: payload.author,
+          coverImage: buildGutenbergCover(payload.gutenbergId),
+          gutenbergId: payload.gutenbergId,
         });
 
     return this.buildReadResponse({
@@ -219,6 +281,7 @@ export class BooksService {
       fallback: isDegradedMode(),
       source: this.repository.getSourceNames().SOURCE_GUTENBERG,
       sourceId: String(payload.gutenbergId),
+      coverImage: buildGutenbergCover(payload.gutenbergId),
     });
   }
 
@@ -227,9 +290,35 @@ export class BooksService {
     const composite = this.repository.parseCompositeSourceId(id);
     const normalizedSource = source || composite?.source || '';
     const sourceId = composite?.sourceId || id;
+    const metadataOnly = isTruthyFlag(query?.metadataOnly);
+    const hintedBook = {
+      title: normalizeText(query?.title),
+      author: normalizeText(query?.author),
+      coverImage: normalizeCoverImage(query?.coverImage),
+    };
 
     validateRequired(normalizedSource, 'Both source and id are required.');
     validateRequired(sourceId, 'Both source and id are required.');
+
+    const stored = await this.repository.findBookBySourceRef(normalizedSource, sourceId);
+    if (metadataOnly && (stored || hintedBook.title || hintedBook.author || hintedBook.coverImage)) {
+      const persisted = hintedBook.title || hintedBook.author || hintedBook.coverImage
+        ? await this.repository.upsertSourceBook({
+            source: normalizedSource,
+            sourceId,
+            title: hintedBook.title || stored?.title,
+            author: hintedBook.author || stored?.author,
+            coverImage: hintedBook.coverImage || stored?.coverImage,
+            gutenbergId: stored?.gutenbergId || (/^\d+$/.test(String(sourceId)) && normalizedSource === this.repository.getSourceNames().SOURCE_GUTENBERG ? Number(sourceId) : null),
+          })
+        : stored;
+
+      return buildMetadataOnlyResponse({
+        source: normalizedSource,
+        sourceId,
+        book: persisted || hintedBook,
+      });
+    }
 
     try {
       const payload = await this.repository.readBySource({
@@ -238,6 +327,35 @@ export class BooksService {
         readGutenbergBookStateless,
         buildReaderOptions: () => this.buildReaderOptions(query),
       });
+
+      const coverImage = extractCoverImage({
+        payload,
+        source: normalizedSource,
+        sourceId,
+        storedCoverImage: stored?.coverImage,
+        hintedCoverImage: hintedBook.coverImage,
+      });
+
+      const persisted = await this.repository.upsertSourceBook({
+        source: normalizedSource,
+        sourceId,
+        title: payload?.title,
+        author: payload?.author,
+        coverImage,
+        gutenbergId: normalizedSource === this.repository.getSourceNames().SOURCE_GUTENBERG && /^\d+$/.test(String(sourceId))
+          ? Number(sourceId)
+          : stored?.gutenbergId,
+      });
+
+      if (metadataOnly) {
+        return buildMetadataOnlyResponse({
+          source: normalizedSource,
+          sourceId,
+          book: persisted || { ...payload, coverImage },
+          availability: payload?.availability || 'unknown',
+          availabilityNote: payload?.availabilityNote || null,
+        });
+      }
 
       const chapters = Array.isArray(payload?.chapters) && payload.chapters.length > 0
         ? payload.chapters
@@ -249,10 +367,12 @@ export class BooksService {
         sourceId,
         availability: payload?.availability || 'unknown',
         availabilityNote: payload?.availabilityNote || null,
+        coverImage,
         data: {
           title: String(payload?.title || 'Untitled'),
           author: String(payload?.author || 'Unknown author'),
           chapters,
+          coverImage,
           availability: payload?.availability || 'unknown',
           availabilityNote: payload?.availabilityNote || null,
         },
@@ -262,17 +382,27 @@ export class BooksService {
         sourceUrl: payload?.sourceUrl || null,
       };
     } catch {
+      if (metadataOnly && stored) {
+        return buildMetadataOnlyResponse({
+          source: normalizedSource,
+          sourceId,
+          book: stored,
+        });
+      }
+
       return {
         success: true,
         source: normalizedSource,
         sourceId,
+        coverImage: normalizeCoverImage(stored?.coverImage || hintedBook.coverImage),
         data: {
-          title: 'Preview unavailable',
-          author: 'Unknown author',
+          title: normalizeText(stored?.title || hintedBook.title, 'Preview unavailable'),
+          author: normalizeText(stored?.author || hintedBook.author, 'Unknown author'),
           chapters: [{ index: 1, title: 'Fallback Preview', html: '<p>This source is temporarily unavailable. Please retry shortly.</p>' }],
+          coverImage: normalizeCoverImage(stored?.coverImage || hintedBook.coverImage),
         },
-        title: 'Preview unavailable',
-        author: 'Unknown author',
+        title: normalizeText(stored?.title || hintedBook.title, 'Preview unavailable'),
+        author: normalizeText(stored?.author || hintedBook.author, 'Unknown author'),
         chapters: [{ index: 1, title: 'Fallback Preview', html: '<p>This source is temporarily unavailable. Please retry shortly.</p>' }],
       };
     }
@@ -286,13 +416,14 @@ export class BooksService {
     });
   }
 
-  buildReadResponse({ payload, bookId, fallback = false, source, sourceId }) {
+  buildReadResponse({ payload, bookId, fallback = false, source, sourceId, coverImage = '' }) {
     const responseData = {
       ...payload,
       bookId,
       fallback,
       source,
       sourceId,
+      coverImage: normalizeCoverImage(coverImage || payload?.coverImage),
     };
 
     return {
@@ -302,6 +433,7 @@ export class BooksService {
         title: responseData.title,
         author: responseData.author,
         chapters: Array.isArray(responseData.chapters) ? responseData.chapters : [],
+        coverImage: responseData.coverImage,
       },
     };
   }
