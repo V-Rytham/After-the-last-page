@@ -177,3 +177,69 @@ html[data-theme='dark'] .meeting-access-page .meeting-book-cta {
   .meeting-book-skeleton-side { grid-column: 1 / -1; justify-items: start; grid-template-columns: 5.5rem 4rem; }
   .meeting-book-cta { justify-self: start; }
 }
+
+@media (max-width: 480px) {
+  .meeting-access-page {
+    min-height: auto;
+    padding: 0.85rem var(--page-gutter) 1.3rem;
+    gap: 0.9rem;
+    align-content: start;
+  }
+
+  .meeting-access-hero {
+    align-items: start;
+    align-content: start;
+    gap: 0.65rem;
+    padding: 0;
+  }
+
+  .meeting-access-hero-copy h1 {
+    font-size: clamp(1.2rem, 6vw, 1.48rem);
+    line-height: 1.1;
+  }
+
+  .meeting-access-hero-copy p,
+  .meeting-access-live-error {
+    font-size: 0.88rem;
+    line-height: 1.48;
+  }
+
+  .meeting-access-search {
+    min-height: 2.45rem;
+    padding: 0.56rem 0.78rem;
+    gap: 0.48rem;
+  }
+
+  .meeting-access-results {
+    gap: 0.65rem;
+  }
+
+  .meeting-book-card,
+  .meeting-access-empty,
+  .meeting-loading-caption {
+    padding: 0.82rem;
+    border-radius: 0.9rem;
+  }
+
+  .meeting-book-title {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    font-size: 0.94rem;
+    line-height: 1.22;
+  }
+
+  .meeting-book-author {
+    font-size: 0.78rem;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .meeting-book-cta {
+    width: 100%;
+    justify-content: center;
+    min-height: 2.35rem;
+    padding: 0 0.72rem;
+  }
+}

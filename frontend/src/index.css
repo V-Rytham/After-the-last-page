@@ -822,6 +822,61 @@ input[type='search']:-webkit-autofill {
   }
 }
 
+@media (max-width: 480px) {
+  :root {
+    --font-size-0: 0.75rem;
+    --font-size-1: 0.84rem;
+    --font-size-2: 0.92rem;
+    --font-size-3: 1rem;
+    --font-size-4: 1.08rem;
+    --font-size-5: 1.22rem;
+    --font-size-6: 1.46rem;
+    --page-gutter: 0.82rem;
+    --section-space: 1.45rem;
+    --chrome-height: 3.8rem;
+  }
+
+  .main-content {
+    min-height: calc(100vh - var(--chrome-height));
+    padding-top: 0.35rem;
+  }
+
+  .main-content.with-navbar {
+    padding-top: calc(var(--chrome-height) + 0.28rem);
+  }
+
+  .layout-shell {
+    gap: var(--section-space);
+  }
+
+  .route-skeleton,
+  .reader-loading-shell {
+    min-height: 32vh;
+    margin: 0.9rem auto;
+    border-radius: 1rem;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .thread-cta,
+  .read-btn,
+  .meet-people-btn,
+  .auth-link-primary,
+  .send-btn,
+  .wizard-send-btn {
+    min-height: 2.6rem;
+    padding: 0.58rem 0.88rem;
+    font-size: 0.86rem;
+  }
+
+  .btn-primary.sm,
+  .btn-secondary.sm {
+    min-height: 2.35rem;
+    padding: 0.45rem 0.72rem;
+    font-size: 0.8rem;
+  }
+}
+
 @media (max-width: 430px) {
   :root {
     --page-gutter: 0.82rem;

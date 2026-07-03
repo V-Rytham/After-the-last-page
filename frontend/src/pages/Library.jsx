@@ -12,10 +12,18 @@ import api from '../utils/api';
 import './Library.css';
 
 const normalizeQuery = (value) => String(value || '').trim();
+const normalizeGenre = (value) => String(value || '').trim().toLowerCase();
 
 export default function Library({ currentUser }) {
   const selectedGenres = useSelectedGenres();
-  const { books: personalizedBooks, loading: recLoading, error: recError } = useRecommendations(selectedGenres);
+  const userPreferredGenres = useMemo(
+    () => Array.from(new Set((Array.isArray(currentUser?.preferredGenres) ? currentUser.preferredGenres : [])
+      .map(normalizeGenre)
+      .filter(Boolean))),
+    [currentUser?.preferredGenres],
+  );
+  const effectiveGenres = selectedGenres.length > 0 ? selectedGenres : userPreferredGenres;
+  const { books: personalizedBooks, loading: recLoading, error: recError } = useRecommendations(effectiveGenres);
 
   const { step: onboardingStep, completed: onboardingCompleted, highlightBookId, nextStep } = useOnboarding();
 
@@ -131,7 +139,7 @@ export default function Library({ currentUser }) {
           onCategoryChange={() => {}}
           inputClassName={!onboardingCompleted && onboardingStep === 1 ? 'onboarding-target-glow' : ''}
         />
-        {!showSearchResults && selectedGenres.length === 0 ? (
+        {!showSearchResults && effectiveGenres.length === 0 ? (
           <p className="library-inline-message" role="status">Pick genres in your Profile to personalize this feed.</p>
         ) : null}
       </header>

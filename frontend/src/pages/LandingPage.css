@@ -461,3 +461,78 @@
     gap: 0.25rem;
   }
 }
+
+@media (max-width: 480px) {
+  .home2-shell {
+    gap: 1rem;
+    padding-bottom: 1.35rem;
+  }
+
+  .home2-shell > .layout-content {
+    gap: 0.85rem;
+  }
+
+  .home2-hero {
+    padding: 1.15rem var(--page-gutter) 0.7rem;
+  }
+
+  .home2-hero-inner,
+  .hero-container {
+    gap: 0.9rem;
+  }
+
+  .home2-hero-title,
+  .hero-text {
+    font-size: clamp(1.45rem, 8vw, 1.95rem);
+    line-height: 1.08;
+    max-width: 12ch;
+  }
+
+  .home2-hero-subtitle,
+  .hero-subtext {
+    font-size: 0.92rem;
+    line-height: 1.52;
+    max-width: 30ch;
+  }
+
+  .home2-hero-actions {
+    margin-top: 0.1rem;
+    gap: 0.5rem;
+  }
+
+  .home2-btn {
+    min-height: 2.6rem;
+    padding: 0.5rem 0.9rem;
+  }
+
+  .home2-section-head h2 {
+    font-size: clamp(1.18rem, 5.8vw, 1.45rem);
+  }
+
+  .home2-current-card,
+  .home2-side-card,
+  .home2-exp-card,
+  .home2-meet-card,
+  .home2-thread-card,
+  .home2-emotional-card {
+    padding: 0.75rem;
+  }
+
+  .home2-current-main {
+    grid-template-columns: 4.8rem minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+
+  .home2-current-cover {
+    min-height: 7rem;
+  }
+
+  .home2-current-copy h2 {
+    font-size: 1rem;
+  }
+
+  .home2-section-date,
+  .home2-muted {
+    font-size: 0.78rem;
+  }
+}

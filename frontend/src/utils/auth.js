@@ -1,3 +1,5 @@
+import { syncSelectedGenresFromUser } from './genrePreferences';
+
 const TOKEN_KEY = 'token';
 const USER_KEY = 'currentUser';
 
@@ -34,6 +36,7 @@ export const saveAuthSession = (payload) => {
 
   window.localStorage.setItem(USER_KEY, JSON.stringify(user));
   window.localStorage.setItem('anonId', user?.anonymousId || '');
+  syncSelectedGenresFromUser(user);
   return user;
 };
 
@@ -41,6 +44,7 @@ export const clearAuthSession = () => {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
   window.localStorage.removeItem('anonId');
+  syncSelectedGenresFromUser(null);
 };
 
 export const updateStoredUser = (patch) => {
@@ -49,6 +53,7 @@ export const updateStoredUser = (patch) => {
 
   const nextUser = { ...current, ...(patch || {}) };
   window.localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+  syncSelectedGenresFromUser(nextUser);
   return nextUser;
 };
 

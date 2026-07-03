@@ -94,3 +94,43 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+@media (max-width: 480px) {
+  .request-book-page {
+    padding: 0.85rem var(--page-gutter) 1.4rem;
+  }
+
+  .request-book-shell {
+    gap: 0.65rem;
+    padding-top: 0;
+  }
+
+  .request-book-header h1 {
+    font-size: clamp(1.22rem, 6vw, 1.5rem);
+    line-height: 1.12;
+  }
+
+  .request-book-input-row {
+    flex-direction: column;
+    gap: 0.42rem;
+  }
+
+  .request-book-input-row input {
+    min-height: 2.45rem;
+    padding: 0 0.7rem;
+  }
+
+  .request-book-input-row .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .request-book-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .request-book-preview img,
+  .request-book-cover-fallback {
+    width: min(8rem, 100%);
+  }
+}

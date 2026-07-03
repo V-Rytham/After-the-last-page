@@ -668,3 +668,101 @@
     min-height: 2.55rem;
   }
 }
+
+@media (max-width: 480px) {
+  .thread-page {
+    padding: 0.55rem var(--page-gutter) 1.25rem;
+  }
+
+  .thread-shell {
+    gap: 0.55rem;
+  }
+
+  .salon-header {
+    gap: 0.55rem;
+    padding-bottom: 0.62rem;
+  }
+
+  .salon-book-anchor {
+    gap: 0.7rem;
+  }
+
+  .salon-book-cover {
+    width: 4.4rem;
+    border-radius: 0.62rem;
+  }
+
+  .salon-copy,
+  .composer-copy,
+  .writing-surface-copy,
+  .thread-list-main,
+  .thread-book-copy,
+  .thread-book-aside {
+    gap: 0.34rem;
+  }
+
+  .thread-title {
+    font-size: clamp(1.08rem, 6vw, 1.34rem);
+    line-height: 1.12;
+  }
+
+  .salon-subtitle,
+  .salon-preface p,
+  .thread-list-preview,
+  .thread-focus-content p,
+  .reply-content p,
+  .composer-copy p,
+  .writing-surface-copy p {
+    font-size: 0.9rem;
+    line-height: 1.52;
+  }
+
+  .salon-kicker,
+  .writing-label,
+  .thread-entry-reference,
+  .salon-room-label {
+    font-size: 0.64rem;
+  }
+
+  .composer-surface,
+  .thread-list-item,
+  .thread-focus-post,
+  .thread-replies,
+  .inline-reply-form {
+    padding: 0.72rem;
+    border-radius: 0.8rem;
+  }
+
+  .thread-list-item {
+    gap: 0.55rem;
+  }
+
+  .thread-book-context {
+    gap: 0.65rem;
+  }
+
+  .thread-entry-head,
+  .thread-focus-header,
+  .reply-head {
+    gap: 0.4rem;
+  }
+
+  .thread-cta {
+    min-height: 2.35rem;
+    font-size: 0.84rem;
+  }
+
+  .nexus-toolbar,
+  .composer-actions,
+  .thread-focus-actions,
+  .reply-actions,
+  .inline-reply-actions,
+  .thread-replies-heading {
+    gap: 0.5rem;
+  }
+
+  .thread-input,
+  .thread-textarea {
+    padding: 0.72rem 0.82rem;
+  }
+}

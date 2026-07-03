@@ -346,3 +346,67 @@
     padding: 0 0.75rem;
   }
 }
+
+@media (max-width: 480px) {
+  .navbar {
+    top: 6px;
+    width: calc(100% - 0.7rem);
+    height: 50px;
+    padding: 0 0.58rem;
+    border-radius: 12px;
+    column-gap: 0.5rem;
+  }
+
+  .navbar-title {
+    max-width: 12.5rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .right-controls {
+    gap: 0.28rem;
+  }
+
+  .mobile-menu-trigger,
+  .mobile-menu-avatar {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  .mobile-drawer-panel {
+    width: min(100%, 22rem);
+    padding: 0.78rem 0.72rem 0.82rem;
+    gap: 0.6rem;
+  }
+
+  .drawer-brand {
+    max-width: 11rem;
+    font-size: 0.94rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .drawer-close {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .drawer-nav-row,
+  .drawer-action-row {
+    min-height: 2.4rem;
+    padding: 0 0.68rem;
+    font-size: 0.84rem;
+  }
+
+  .drawer-theme-group {
+    gap: 0.35rem;
+  }
+
+  .drawer-theme-swatch {
+    min-height: 2.1rem;
+    font-size: 0.72rem;
+  }
+}

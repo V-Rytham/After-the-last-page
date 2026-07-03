@@ -747,3 +747,76 @@ html[data-theme='dark'] .current-reading-card__resume {
     --desk-card-width: 124px;
   }
 }
+
+@media (max-width: 480px) {
+  .desk-page {
+    padding: 8px var(--page-gutter) 24px;
+  }
+
+  .desk-shell {
+    gap: 14px;
+  }
+
+  .desk-hero,
+  .desk-section {
+    gap: 6px;
+  }
+
+  .desk-section__heading {
+    gap: 4px;
+  }
+
+  .desk-hero h2,
+  .desk-section h2 {
+    font-size: clamp(1.02rem, 5.4vw, 1.26rem);
+  }
+
+  .current-reading-card {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .current-reading-card__content,
+  .current-reading-card__main {
+    gap: 10px;
+  }
+
+  .current-reading-card__eyebrow {
+    margin-bottom: 4px;
+    font-size: 0.64rem;
+  }
+
+  .current-reading-card h3 {
+    font-size: clamp(1.16rem, 6vw, 1.42rem);
+  }
+
+  .current-reading-card p {
+    font-size: 0.88rem;
+  }
+
+  .current-reading-card__resume {
+    min-height: 2.4rem;
+    font-size: 0.86rem;
+  }
+
+  .card-row {
+    --desk-card-gap: 10px;
+  }
+
+  .card-row--recent,
+  .card-row--recommendations {
+    --desk-card-width: 118px;
+  }
+
+  .editorial-book-card h3,
+  .editorial-book-card p,
+  .editorial-book-card__status {
+    font-size: 0.72rem;
+  }
+
+  .desk-btn {
+    min-height: 2.2rem;
+    padding: 0.42rem 0.72rem;
+    font-size: 0.76rem;
+  }
+}

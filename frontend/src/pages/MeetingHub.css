@@ -1096,3 +1096,119 @@ html[data-theme='dark'] .meeting-tertiary-action {
     font-size: clamp(1.18rem, 5.5vw, 1.36rem);
   }
 }
+
+@media (max-width: 480px) {
+  .meeting-hub {
+    padding: 0.7rem var(--page-gutter) 1.2rem;
+  }
+
+  .preferences-content {
+    padding: 0.9rem 0.82rem;
+    gap: 0.68rem;
+  }
+
+  .meeting-back-btn {
+    min-height: 2.2rem;
+    font-size: 0.82rem;
+  }
+
+  .meeting-pref-header h2 {
+    font-size: clamp(1.2rem, 6.2vw, 1.5rem);
+  }
+
+  .meeting-pref-header p,
+  .meeting-notice {
+    font-size: 0.84rem;
+  }
+
+  .pref-card {
+    gap: 0.65rem;
+    padding: 0.62rem 0.68rem;
+  }
+
+  .meeting-pref-actions {
+    gap: 0.5rem;
+  }
+
+  .meeting-pref-actions .meeting-primary-action,
+  .meeting-pref-actions .meeting-secondary-action,
+  .meeting-tertiary-action {
+    min-height: 2.45rem;
+  }
+
+  .searching-card {
+    padding: 1rem 0.8rem;
+  }
+
+  .room-main {
+    border-radius: 0.95rem;
+  }
+
+  .room-header {
+    padding: 0.78rem 0.82rem;
+  }
+
+  .partner-avatar,
+  .wizard-avatar {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .room-title {
+    font-size: 1rem;
+  }
+
+  .room-subtitle {
+    font-size: 0.76rem;
+  }
+
+  .chat-messages {
+    padding: 0.78rem;
+  }
+
+  .message-content,
+  .meeting-hub--bookfriend .message-content {
+    max-width: 88%;
+  }
+
+  .msg-bubble,
+  .meeting-hub--bookfriend .msg-bubble {
+    padding: 0.58rem 0.74rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .chat-input-area,
+  .meeting-hub--bookfriend .chat-input-area {
+    margin: 0 0.55rem 0.55rem;
+    padding: 0.42rem 0.46rem 0.42rem 0.68rem;
+    border-radius: 1.1rem;
+  }
+
+  .chat-input,
+  .meeting-hub--bookfriend .chat-input {
+    min-height: 2.2rem;
+    font-size: 0.88rem;
+  }
+
+  .send-btn,
+  .meeting-hub--bookfriend .send-btn {
+    width: 2.35rem;
+    min-width: 2.35rem;
+    height: 2.35rem;
+  }
+
+  .leave-guard-card {
+    padding: 1rem 0.9rem;
+  }
+
+  .leave-guard-actions {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .leave-guard-actions > * {
+    width: 100%;
+    justify-content: center;
+  }
+}

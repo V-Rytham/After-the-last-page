@@ -241,3 +241,68 @@
     justify-items: start;
   }
 }
+
+@media (max-width: 480px) {
+  .thread-access-page {
+    min-height: auto;
+    padding: 0.9rem var(--page-gutter) 1.4rem;
+    gap: 0.72rem;
+  }
+
+  .thread-access-hero {
+    margin: 0;
+  }
+
+  .thread-access-hero-row {
+    gap: 0.7rem;
+  }
+
+  .thread-access-copy {
+    flex: none;
+    max-width: none;
+    gap: 0.32rem;
+  }
+
+  .thread-access-copy h1 {
+    font-size: clamp(1.2rem, 6.3vw, 1.52rem);
+    line-height: 1.1;
+  }
+
+  .thread-access-copy p {
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .thread-access-search {
+    width: 100%;
+    min-height: 2.45rem;
+    padding: 0.56rem 0.74rem;
+    gap: 0.4rem;
+  }
+
+  .thread-access-grid {
+    gap: 0.72rem;
+  }
+
+  .thread-access-card,
+  .thread-access-loading {
+    padding: 0.8rem;
+    min-height: 0;
+    border-radius: 0.9rem;
+  }
+
+  .thread-access-title {
+    font-size: 0.94rem;
+  }
+
+  .thread-access-author {
+    font-size: 0.76rem;
+  }
+
+  .thread-access-button {
+    width: 100%;
+    justify-content: center;
+    min-height: 2.4rem;
+    padding: 0.42rem 0.72rem;
+  }
+}
