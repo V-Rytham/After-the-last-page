@@ -328,11 +328,7 @@ const MeetingHub = () => {
 
     try {
       if (phase === 'searching') {
-        const identity = getOrCreateIdentity();
-        await api.post('/matchmaking/leave', {
-          userId: identity?.userId,
-          displayName: identity?.displayName,
-        }).catch(() => {});
+        await api.post('/matchmaking/leave').catch(() => {});
       }
 
       if (phase === 'connected' && roomId) {
@@ -553,13 +549,10 @@ const MeetingHub = () => {
     }
     setPhase('searching');
     setMatchNotice('');
-    const identity = getOrCreateIdentity();
     const attemptJoin = async () => api.post('/meet/join', {
       source: book?.source,
       source_book_id: book?.sourceId,
       prefType,
-      userId: identity?.userId,
-      displayName: identity?.displayName,
     });
 
     await attemptJoin().then(() => {

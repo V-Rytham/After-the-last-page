@@ -1,7 +1,7 @@
 import { checkMeetAccess } from '../services/accessService.js';
 import { getCanonicalBook } from '../services/canonicalBookService.js';
 import { log } from '../utils/logger.js';
-import { resolveSocketIdentity } from '../middleware/identityMiddleware.js';
+import { requireSocketAuth } from '../middleware/identityMiddleware.js';
 
 export default function registerSocketEvents(io, sessionManager) {
   if (!sessionManager) {
@@ -21,12 +21,7 @@ export default function registerSocketEvents(io, sessionManager) {
     });
   };
 
-  io.use((socket, next) => {
-    const identity = resolveSocketIdentity(socket);
-    socket.userId = identity.userId;
-    socket.displayName = identity.displayName;
-    next();
-  });
+  io.use(requireSocketAuth);
 
   io.on('connection', (socket) => {
     log(`[SOCKET] User connected: ${socket.id}`);

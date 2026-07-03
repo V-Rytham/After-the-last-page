@@ -4,7 +4,6 @@ import { Search, Sparkles } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
-import { getOrCreateIdentity } from '../utils/identity';
 import normalizeSearchResults, { toList } from '../utils/normalizeSearchResults';
 import './MeetingAccessHub.css';
 
@@ -60,13 +59,10 @@ export default function MeetingAccessHub() {
     setJoiningKey(key);
     setJoinNotice('');
 
-    const identity = getOrCreateIdentity();
     const attemptJoin = async () => api.post('/meet/join', {
       source: book.source,
       source_book_id: book.source_book_id,
       prefType: 'text',
-      userId: identity?.userId,
-      displayName: identity?.displayName,
     });
 
     try {
