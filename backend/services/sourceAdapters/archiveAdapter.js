@@ -27,6 +27,12 @@ const safeJson = async (response) => {
 
 const asString = (value) => String(value || '').trim();
 
+const asArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null) return [];
+  return [value];
+};
+
 const normalizeCreator = (value) => {
   if (Array.isArray(value)) {
     return asString(value[0]) || 'Unknown author';
@@ -35,12 +41,14 @@ const normalizeCreator = (value) => {
 };
 
 export const detectArchivePublicDomain = ({ licenseurl, rights } = {}) => {
-  const normalizedLicense = asString(licenseurl).toLowerCase();
-  const normalizedRights = asString(rights);
+  const normalizedLicense = asArray(licenseurl).map((value) => asString(value).toLowerCase()).join(' ');
+  const normalizedRights = asArray(rights).map((value) => asString(value).toLowerCase()).join(' ');
 
   return normalizedLicense.includes('publicdomain')
     || normalizedLicense.includes('creativecommons.org/publicdomain')
-    || normalizedRights === 'Public Domain';
+    || normalizedRights === 'public domain'
+    || normalizedRights.includes('no known copyright')
+    || normalizedRights.includes('not in copyright');
 };
 
 const detectFileFormat = (fileName) => {
@@ -114,8 +122,8 @@ export const enrichArchiveReadability = async (book, { timeoutMs = ARCHIVE_TIMEO
 
   const metadata = await fetchArchiveMetadata(identifier, { timeoutMs });
   const files = Array.isArray(metadata?.files) ? metadata.files : [];
-  const rights = asString(metadata?.metadata?.rights);
-  const licenseurl = asString(metadata?.metadata?.licenseurl || book?.licenseurl);
+  const rights = metadata?.metadata?.rights;
+  const licenseurl = metadata?.metadata?.licenseurl || book?.licenseurl;
 
   const isPublicDomain = detectArchivePublicDomain({ licenseurl, rights });
   if (!isPublicDomain) {
