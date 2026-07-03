@@ -1,4 +1,5 @@
 import express from 'express';
+import { requireAuth } from '../middleware/authMiddleware.js';
 import { attachIdentity } from '../middleware/identityMiddleware.js';
 import { createMatchmakingController } from '../controllers/matchmakingController.js';
 
@@ -6,8 +7,8 @@ export const buildMatchmakingRoutes = (sessionManager) => {
   const router = express.Router();
   const controller = createMatchmakingController(sessionManager);
 
-  router.post('/join', attachIdentity, controller.join);
-  router.post('/leave', attachIdentity, controller.leave);
+  router.post('/join', requireAuth, attachIdentity, controller.join);
+  router.post('/leave', requireAuth, attachIdentity, controller.leave);
 
   return router;
 };

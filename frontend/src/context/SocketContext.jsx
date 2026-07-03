@@ -40,7 +40,7 @@ export const SocketProvider = ({ currentUser, children }) => {
   }, []);
 
   const ensureConnected = useCallback(async ({ forceReconnect = false } = {}) => {
-    syncMeetSocketAuth();
+    syncMeetSocketAuth(currentUser);
 
     if (forceReconnect && meetSocket.connected) {
       meetSocket.disconnect();
@@ -79,7 +79,7 @@ export const SocketProvider = ({ currentUser, children }) => {
     });
 
     return meetSocket;
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -89,7 +89,7 @@ export const SocketProvider = ({ currentUser, children }) => {
       return;
     }
 
-    syncMeetSocketAuth();
+    syncMeetSocketAuth(currentUser);
     if (!meetSocket.connected) {
       meetSocket.connect();
     }
