@@ -41,6 +41,7 @@ export const checkMeetAccess = async ({ userId, bookId, source, sourceBookId }) 
     if (normalizedSource === 'archive' || normalizedSource === 'internetarchive') {
       const allowed = await canCreateArchiveRooms({ source: normalizedSource, sourceId: normalizedSourceBookId });
       if (!allowed) {
+        console.log(`Inside checkMeetAccess, sending error!`);
         return {
           access: false,
           mode: 'restricted',

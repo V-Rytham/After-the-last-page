@@ -110,11 +110,15 @@ const MeetingHub = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        if (meetRoomState?.title) {
+        // Use the title passed via navigation state, but only if it is a real
+        // title. A placeholder ("Untitled") means canonical resolution failed
+        // upstream, so fall through to the authoritative /books/read fetch.
+        const passedTitle = String(meetRoomState?.title || '').trim();
+        if (passedTitle && !/^untitled$/i.test(passedTitle)) {
           setBook({
             _id: matchBookId,
             id: matchBookId,
-            title: meetRoomState.title,
+            title: passedTitle,
             author: meetRoomState.author || 'Unknown author',
             source: meetRoomState.source,
             sourceId: meetRoomState.source_book_id,
@@ -583,7 +587,7 @@ const MeetingHub = () => {
     if (!book || bookFriendStarting) return;
 
     setBookFriendStarting(true);
-    setMatchNotice('Connecting to BookFriendâ€¦');
+    setMatchNotice('Connecting to BookFriend');
 
     try {
       const agentBookId = isObjectId

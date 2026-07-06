@@ -7,6 +7,7 @@ import useDebouncedValue from '../hooks/useDebouncedValue';
 import useOnboarding from '../hooks/useOnboarding';
 import OnboardingTooltip from '../components/onboarding/OnboardingTooltip';
 import { getCachedSearch, setCachedSearch } from '../utils/searchCache';
+import normalizeSearchResults from '../utils/normalizeSearchResults';
 import AuthRequired from '../components/auth/AuthRequired';
 import api from '../utils/api';
 import './Library.css';
@@ -57,9 +58,11 @@ export default function Library({ currentUser }) {
     api.get('/books/search', { params: { q }, signal: controller.signal })
       .then((res) => res.data)
       .then((data) => {
-        const books = Array.isArray(data?.books)
+        const rawBooks = Array.isArray(data?.books)
           ? data.books
           : (Array.isArray(data?.results) ? data.results : []);
+        // Normalize so every result resolves a cover (coverUrl/thumbnail/formats/... -> coverImage, https).
+        const books = normalizeSearchResults(rawBooks);
         setCachedSearch(q, books);
         Promise.resolve().then(() => setSearchState({ loading: false, error: '', books }));
 

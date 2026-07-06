@@ -169,7 +169,10 @@ const { booksModule } = bootstrapFeatureModules();
 const bookfriendConfig = getBookfriendConfig();
 const bookfriendClient = new BookfriendClient(bookfriendConfig);
 const bookfriendHealthMonitor = new BookfriendHealthMonitor({ threshold: bookfriendConfig.healthFailureThreshold });
-const bookfriendGateway = new BookfriendGatewayService({ client: bookfriendClient, healthMonitor: bookfriendHealthMonitor, logger: log });
+// The gateway expects a structured logger (logger.info/warn/error); `log` is a
+// bare function, so adapt it to that interface.
+const bookfriendLogger = { info: log, warn: log, error: log };
+const bookfriendGateway = new BookfriendGatewayService({ client: bookfriendClient, healthMonitor: bookfriendHealthMonitor, logger: bookfriendLogger });
 
 app.locals.bookfriendGateway = bookfriendGateway;
 

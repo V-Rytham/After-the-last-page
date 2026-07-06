@@ -647,20 +647,24 @@ html[data-theme='dark'] .current-reading-card__resume {
     padding: 12px 10px 34px;
   }
 
+  /* More breathing room between content groups. */
   .desk-shell {
-    gap: 16px;
+    gap: 22px;
   }
 
   .desk-hero,
   .desk-section {
-    gap: 8px;
+    gap: 11px;
     padding-inline: 0;
   }
 
+  /* Stronger section-heading hierarchy. */
   .desk-hero h2,
   .desk-section h2 {
     font-size: clamp(1.12rem, 5.2vw, 1.36rem);
     line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
   .desk-section__heading { gap: 6px; }
@@ -716,10 +720,15 @@ html[data-theme='dark'] .current-reading-card__resume {
     --desk-card-width: 132px;
   }
 
-  .editorial-book-card { gap: 5px; }
-  .editorial-book-card h3 { font-size: 0.74rem; }
+  /* Tighter whitespace inside cards; title stands out over metadata. */
+  .editorial-book-card { gap: 4px; }
+  .editorial-book-card h3 {
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.25;
+  }
   .editorial-book-card p,
-  .editorial-book-card__status { font-size: 0.74rem; }
+  .editorial-book-card__status { font-size: 0.7rem; }
   .editorial-book-card__reason {
     font-size: 0.68rem;
     min-height: 0;
@@ -754,12 +763,12 @@ html[data-theme='dark'] .current-reading-card__resume {
   }
 
   .desk-shell {
-    gap: 14px;
+    gap: 20px;
   }
 
   .desk-hero,
   .desk-section {
-    gap: 6px;
+    gap: 9px;
   }
 
   .desk-section__heading {
@@ -769,6 +778,8 @@ html[data-theme='dark'] .current-reading-card__resume {
   .desk-hero h2,
   .desk-section h2 {
     font-size: clamp(1.02rem, 5.4vw, 1.26rem);
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
   .current-reading-card {
@@ -808,10 +819,15 @@ html[data-theme='dark'] .current-reading-card__resume {
     --desk-card-width: 118px;
   }
 
-  .editorial-book-card h3,
+  .editorial-book-card h3 {
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+
   .editorial-book-card p,
   .editorial-book-card__status {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
   }
 
   .desk-btn {

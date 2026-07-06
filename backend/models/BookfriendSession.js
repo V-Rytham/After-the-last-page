@@ -42,6 +42,23 @@ const bookfriendSessionSchema = new mongoose.Schema(
       default: null,
       trim: true,
     },
+    canonicalBookId: {
+      type: String,
+      default: null,
+      trim: true,
+      index: true,
+    },
+    source: {
+      type: String,
+      default: null,
+      trim: true,
+      lowercase: true,
+    },
+    sourceBookId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     // Optional: denormalized Gutenberg id for debugging / analytics.
     gutenbergId: {
       type: Number,
@@ -90,6 +107,8 @@ const bookfriendSessionSchema = new mongoose.Schema(
 
 // Index for finding active sessions by user+book
 bookfriendSessionSchema.index({ userId: 1, bookId: 1, status: 1 });
+bookfriendSessionSchema.index({ userId: 1, canonicalBookId: 1, status: 1 });
+bookfriendSessionSchema.index({ source: 1, sourceBookId: 1 });
 
 // Auto-delete after 30 days
 bookfriendSessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 2_592_000 });

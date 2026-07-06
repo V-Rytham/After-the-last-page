@@ -85,6 +85,53 @@ test('RealtimeSessionManager disconnect cleanup ends ghost matchmaking', async (
   assert.equal(searching, 0);
 });
 
+test('RealtimeSessionManager allows re-joining matchmaking from IN_CONVERSATION without an illegal transition (409)', async () => {
+  const io = createFakeIo();
+  const manager = new RealtimeSessionManager(io);
+
+  const aSocket = createFakeSocket('s-a');
+  const bSocket = createFakeSocket('s-b');
+  io.sockets.sockets.set('s-a', aSocket);
+  io.sockets.sockets.set('s-b', bSocket);
+  manager.registerSocket({ userId: 'u-a', socketId: 's-a' });
+  manager.registerSocket({ userId: 'u-b', socketId: 's-b' });
+
+  await manager.joinMatchmaking({ userId: 'u-a', bookId: 'book-1', prefType: 'text' });
+  await manager.joinMatchmaking({ userId: 'u-b', bookId: 'book-1', prefType: 'text' });
+  const roomId = manager.getSession('u-a').roomId;
+  manager.enterConversation({ userId: 'u-a', roomId });
+  assert.equal(manager.getSession('u-a').state, SESSION_STATES.IN_CONVERSATION);
+
+  // Re-joining while still IN_CONVERSATION must NOT throw a 409; it should reset
+  // the prior session (notifying the partner) and start a fresh search.
+  const rejoin = await manager.joinMatchmaking({ userId: 'u-a', bookId: 'book-1', prefType: 'text' });
+  assert.equal(rejoin.matched, false);
+  assert.equal(manager.getSession('u-a').state, SESSION_STATES.SEARCHING);
+  assert.ok(bSocket.emitted.some((entry) => entry.event === 'partner_left'));
+  assert.equal(manager.getSession('u-b').state, SESSION_STATES.IDLE);
+});
+
+test('RealtimeSessionManager enforces room membership for realtime relays', async () => {
+  const io = createFakeIo();
+  const manager = new RealtimeSessionManager(io);
+
+  const aSocket = createFakeSocket('s-a');
+  const bSocket = createFakeSocket('s-b');
+  io.sockets.sockets.set('s-a', aSocket);
+  io.sockets.sockets.set('s-b', bSocket);
+  manager.registerSocket({ userId: 'u-a', socketId: 's-a' });
+  manager.registerSocket({ userId: 'u-b', socketId: 's-b' });
+
+  await manager.joinMatchmaking({ userId: 'u-a', bookId: 'book-1', prefType: 'text' });
+  await manager.joinMatchmaking({ userId: 'u-b', bookId: 'book-1', prefType: 'text' });
+  const roomId = manager.getSession('u-a').roomId;
+
+  assert.equal(manager.isRoomMember('u-a', roomId), true);
+  assert.equal(manager.isRoomMember('u-b', roomId), true);
+  assert.equal(manager.isRoomMember('u-outsider', roomId), false);
+  assert.equal(manager.isRoomMember('u-a', 'some-other-room'), false);
+});
+
 test('RealtimeSessionManager re-queues survivor when partner disconnects during match finalization', async () => {
   const io = createFakeIo();
   const manager = new RealtimeSessionManager(io);

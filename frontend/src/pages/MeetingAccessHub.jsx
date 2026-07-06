@@ -7,6 +7,19 @@ import api from '../utils/api';
 import normalizeSearchResults, { toList } from '../utils/normalizeSearchResults';
 import './MeetingAccessHub.css';
 
+// Backend canonical resolution can fail open (e.g. archive.org metadata timeout)
+// and return placeholder text. Prefer the first real (non-placeholder) value so
+// the title the reader actually searched for wins over "Untitled".
+const PLACEHOLDER_TEXT = /^(untitled|unknown author|unknown)$/i;
+const preferText = (primary, secondary, fallback) => {
+  const clean = (value) => String(value || '').trim();
+  const p = clean(primary);
+  const s = clean(secondary);
+  if (p && !PLACEHOLDER_TEXT.test(p)) return p;
+  if (s && !PLACEHOLDER_TEXT.test(s)) return s;
+  return p || s || fallback;
+};
+
 export default function MeetingAccessHub() {
   const navigate = useNavigate();
   const { socketConnected, socketConnecting, socketError, ensureConnected } = useSocketConnection();
@@ -78,8 +91,8 @@ export default function MeetingAccessHub() {
             canonical_book_id: roomId,
             source: book.source,
             source_book_id: book.source_book_id,
-            title: String(data?.book?.title || book.title || 'Untitled'),
-            author: String(data?.book?.author || book.author || 'Unknown author'),
+            title: preferText(book.title, data?.book?.title, 'Untitled'),
+            author: preferText(book.author, data?.book?.author, 'Unknown author'),
           },
         },
       });
@@ -103,8 +116,8 @@ export default function MeetingAccessHub() {
                   canonical_book_id: roomId,
                   source: book.source,
                   source_book_id: book.source_book_id,
-                  title: String(data?.book?.title || book.title || 'Untitled'),
-                  author: String(data?.book?.author || book.author || 'Unknown author'),
+                  title: preferText(book.title, data?.book?.title, 'Untitled'),
+                  author: preferText(book.author, data?.book?.author, 'Unknown author'),
                 },
               },
             });

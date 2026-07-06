@@ -22,11 +22,19 @@ const serviceUnavailableError = (message) => ({
 const toFallbackRecommendation = (book) => {
   const gutenbergId = Number(book?.gutenbergId);
   if (!Number.isFinite(gutenbergId) || gutenbergId <= 0) return null;
+  const genres = Array.isArray(book?.tags) ? book.tags.map((tag) => String(tag || '').trim()).filter(Boolean) : [];
+  const coverImage = String(book?.coverImage || '').trim()
+    || `https://www.gutenberg.org/cache/epub/${gutenbergId}/pg${gutenbergId}.cover.medium.jpg`;
   return {
     id: `gutenberg:${gutenbergId}`,
     gutenbergId,
+    source: 'gutenberg',
+    sourceId: String(gutenbergId),
     title: String(book?.title || 'Untitled'),
     author: String(book?.author || 'Unknown author'),
+    coverImage,
+    cover: coverImage,
+    genres,
     reason: 'curated-fallback',
   };
 };
@@ -53,8 +61,15 @@ export const postRecommendations = async (req, res) => {
     const normalized = Array.from(new Set(rawGenres.map(normalizeGenre).filter(Boolean)));
     const limit = normalizeLimit(req.body?.limit);
 
+    // No preferred/selected genres yet (e.g. a brand-new user): instead of erroring,
+    // return a default popular catalog so the feed always feels populated.
     if (normalized.length === 0) {
-      return res.status(400).json({ message: 'genres must be a non-empty array.' });
+      return res.status(200).json({
+        success: true,
+        books: buildFallbackRecommendations({ genres: [], limit: limit || 50 }),
+        personalized: false,
+        fallback: true,
+      });
     }
 
     if (!recommendationsClient.isEnabled()) {

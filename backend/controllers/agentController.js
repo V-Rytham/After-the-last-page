@@ -21,12 +21,17 @@ export const startAgentSession = async (req, res) => {
   const requestId = req.requestId || crypto.randomUUID();
   try {
     const payload = normalizeAgentPayload(req.body);
+    console.log("Normalized payload:", payload);
     validateStartPayload(payload);
     const userId = req.user?._id?.toString() || req.user?.anonymousId;
+    console.log("Resolved userId:", userId);
     if (!userId) throw new ValidationError('Authentication required');
     const data = await req.app.locals.bookfriendGateway.start({ userId, body: payload, requestId });
     return res.status(201).json({ ...data, requestId });
-  } catch (error) { return sendError(res, error, requestId); }
+  } catch (error) {
+      console.error(error);
+      return sendError(res, error, requestId); 
+    }
 };
 
 export const sendAgentMessage = async (req, res) => {

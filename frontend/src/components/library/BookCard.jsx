@@ -1,7 +1,12 @@
 import React, { memo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const PLACEHOLDER_COVER = 'https://placehold.co/420x630?text=No+Cover';
+// Inline SVG data URI: renders instantly with no extra network request, unlike a
+// remote placeholder (which made "No cover" appear a full round-trip too late).
+const PLACEHOLDER_COVER = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='420'%20height='630'%20viewBox='0%200%20420%20630'%3E%3Crect%20width='420'%20height='630'%20fill='%231a2133'/%3E%3Ctext%20x='210'%20y='315'%20font-family='Georgia,serif'%20font-size='34'%20fill='%235b6784'%20text-anchor='middle'%20dominant-baseline='middle'%3ENo%20cover%3C/text%3E%3C/svg%3E";
+
+// Labels that are availability/source markers, not real genres — hidden from the pills.
+const NON_GENRE_LABELS = new Set(['external']);
 
 const getGutenbergCoverUrl = (gutenbergId) => {
   const id = String(gutenbergId || '').trim();
@@ -10,6 +15,9 @@ const getGutenbergCoverUrl = (gutenbergId) => {
 };
 
 const normalizeGenre = (value) => String(value || '').trim();
+// A remote placeholder cover is effectively "no cover" — treat it as missing so we
+// use the instant inline placeholder instead of waiting on a remote request.
+const isRemotePlaceholder = (url) => /placehold\.co/i.test(String(url || ''));
 
 const BookCard = ({ book, loading = false, onboardingHighlight = false, skeletonDelay = 0 }) => {
   const [imageError, setImageError] = useState(false);
@@ -31,8 +39,10 @@ const BookCard = ({ book, loading = false, onboardingHighlight = false, skeleton
 
   const title = String(book?.title || '').trim();
   const author = String(book?.author || '').trim();
-  const genres = Array.isArray(book?.genres) ? book.genres.map(normalizeGenre).filter(Boolean).slice(0, 4) : [];
-  if (!title || !author || genres.length === 0) {
+  const genres = Array.isArray(book?.genres)
+    ? book.genres.map(normalizeGenre).filter(Boolean).filter((genre) => !NON_GENRE_LABELS.has(genre.toLowerCase())).slice(0, 4)
+    : [];
+  if (!title || !author) {
     return null;
   }
 
@@ -41,9 +51,11 @@ const BookCard = ({ book, loading = false, onboardingHighlight = false, skeleton
   const sourceId = String(book?.sourceId || (Number.isFinite(gutenbergId) ? gutenbergId : '') || '').trim();
   const compositeId = source && sourceId ? `${source}:${sourceId}` : '';
 
+  const rawCover = String(book?.coverImage || '').trim();
+  const usableCover = rawCover && !isRemotePlaceholder(rawCover) ? rawCover : '';
   const coverSrc = imageError
     ? PLACEHOLDER_COVER
-    : (String(book?.coverImage || '').trim() || (source === 'gutenberg' ? (getGutenbergCoverUrl(sourceId) || PLACEHOLDER_COVER) : PLACEHOLDER_COVER));
+    : (usableCover || (source === 'gutenberg' ? (getGutenbergCoverUrl(sourceId) || PLACEHOLDER_COVER) : PLACEHOLDER_COVER));
 
   const readPath = source === 'gutenberg' && Number.isFinite(Number(sourceId))
     ? `/read/gutenberg/${encodeURIComponent(sourceId)}`
@@ -64,9 +76,11 @@ const BookCard = ({ book, loading = false, onboardingHighlight = false, skeleton
       </Link>
       <h3 className="library-book-title" title={title}>{title}</h3>
       <p className="library-book-author">{author}</p>
-      <div className="library-book-genres" aria-label="Book genres">
-        {genres.map((genre) => <span key={`${resolvedShelfKey}-${genre}`} className="library-book-genre-pill">{genre}</span>)}
-      </div>
+      {genres.length > 0 ? (
+        <div className="library-book-genres" aria-label="Book genres">
+          {genres.map((genre) => <span key={`${resolvedShelfKey}-${genre}`} className="library-book-genre-pill">{genre}</span>)}
+        </div>
+      ) : null}
 
       <div className="library-book-actions">
         <Link className="library-book-cta" to={readPath}>Read</Link>

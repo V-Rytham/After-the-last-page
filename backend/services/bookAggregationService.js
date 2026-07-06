@@ -486,9 +486,25 @@ export const evaluateArchiveRoomEligibility = async ({ source, sourceId, timeout
     if (!summary.eligible) logArchiveMetric('archive_skipped_non_public_domain');
     return summary;
   } catch (error) {
-    const summary = summarizeArchiveEligibility({ source: normalizedSource, sourceId: id, enriched: null, error });
-    logArchiveMetric('archive_failed_fetch');
-    return summary;
+      logArchiveMetric('archive_failed_fetch');
+
+      // Don't convert transient network failures into copyright failures.
+      if (error?.name === 'AbortError') {
+          return {
+              eligible: true,
+              reason: 'Archive eligibility service timed out; allowing temporarily.',
+              temporary: true,
+          };
+      }
+
+      const summary = summarizeArchiveEligibility({
+          source: normalizedSource,
+          sourceId: id,
+          enriched: null,
+          error,
+      });
+
+      return summary;
   }
 };
 

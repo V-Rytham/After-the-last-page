@@ -1,20 +1,71 @@
+import mongoose from 'mongoose';
 import { BookfriendSession } from '../../../../models/BookfriendSession.js';
 import { normalizeGutenbergId, toBookfriendBookId } from '../transformers/bookIdTransformer.js';
 
+// The app enables the global `sanitizeFilter` (config/db.js), which neutralizes
+// raw operator objects in query filters (turning `{ $ne: 'ended' }` into an
+// `$eq` match that CastErrors on a String field). Wrap operator filters in
+// `mongoose.trusted()` so they run as intended.
+const NOT_ENDED = () => mongoose.trusted({ $ne: 'ended' });
+
 export class BookfriendGatewayService {
-  constructor({ client, healthMonitor, logger }) { this.client = client; this.healthMonitor = healthMonitor; this.logger = logger; }
+  constructor({ client, healthMonitor, logger }) {
+    this.client = client;
+    this.healthMonitor = healthMonitor;
+    // Accept either a structured logger (info/warn/error) or a bare log function,
+    // so a logging call can never crash a request that already did real work.
+    const fn = typeof logger === 'function' ? logger : null;
+    this.logger = (logger && typeof logger.info === 'function')
+      ? logger
+      : { info: fn || (() => {}), warn: fn || (() => {}), error: fn || (() => {}) };
+  }
 
   async start({ userId, body, requestId }) {
-    const gutenbergId = await normalizeGutenbergId(body.bookId);
-    const upstream = await this.client.start({ user_id: userId, book_id: toBookfriendBookId(gutenbergId), chapter_progress: body.chapterProgress }, requestId);
-    await BookfriendSession.create({ sessionId: upstream.session_id, userId, bookId: `gutenberg:${gutenbergId}`, localBookId: String(body.bookId), gutenbergId, status: 'active' });
-    this.logger.info('[BOOKFRIEND_GATEWAY] Session created', { requestId, userId, sessionId: upstream.session_id, bookId: body.bookId });
+    const rawBookId = String(body.bookId || '').trim();
+
+    // Prefer a canonical Gutenberg id so indexed titles keep full-text RAG.
+    // Non-Gutenberg books are still supported: pass the raw id + title/author
+    // and BookFriend answers in fallback (metadata-only) mode.
+    let gutenbergId = null;
+    try {
+      gutenbergId = await normalizeGutenbergId(rawBookId);
+    } catch {
+      gutenbergId = null;
+    }
+    const upstreamBookId = gutenbergId ? toBookfriendBookId(gutenbergId) : rawBookId;
+
+    const upstream = await this.client.start(
+      {
+        user_id: userId,
+        book_id: upstreamBookId,
+        book_title: body.book_title,
+        book_author: body.book_author,
+        chapter_progress: body.chapterProgress,
+      },
+      requestId,
+    );
+
+    await BookfriendSession.create({
+      sessionId: upstream.session_id,
+      userId,
+      bookId: upstreamBookId,
+      localBookId: rawBookId,
+      gutenbergId: gutenbergId || null,
+      status: 'active',
+    });
+    this.logger.info('[BOOKFRIEND_GATEWAY] Session created', {
+      requestId,
+      userId,
+      sessionId: upstream.session_id,
+      bookId: rawBookId,
+      gutenbergId: gutenbergId || null,
+    });
     this.healthMonitor.onSuccess();
     return { session_id: upstream.session_id, status: 'active' };
   }
 
   async message({ userId, body, requestId }) {
-    const own = await BookfriendSession.findOne({ sessionId: body.sessionId, userId, status: { $ne: 'ended' } }).lean();
+    const own = await BookfriendSession.findOne({ sessionId: body.sessionId, userId, status: NOT_ENDED() }).lean();
     this.logger.info('[BOOKFRIEND_GATEWAY] Session lookup', { requestId, userId, sessionId: body.sessionId, found: Boolean(own) });
     if (!own) throw new Error('Session not found for user');
     const upstream = await this.client.message({ session_id: body.sessionId, message: body.message, chapter_progress: body.chapterProgress }, requestId);
@@ -24,7 +75,7 @@ export class BookfriendGatewayService {
   }
 
   async end({ userId, body, requestId }) {
-    const own = await BookfriendSession.findOne({ sessionId: body.sessionId, userId, status: { $ne: 'ended' } }).lean();
+    const own = await BookfriendSession.findOne({ sessionId: body.sessionId, userId, status: NOT_ENDED() }).lean();
     this.logger.info('[BOOKFRIEND_GATEWAY] Session lookup for end', { requestId, userId, sessionId: body.sessionId, found: Boolean(own) });
     if (!own) throw new Error('Session not found for user');
     await this.client.end({ session_id: body.sessionId }, requestId).catch(() => null);

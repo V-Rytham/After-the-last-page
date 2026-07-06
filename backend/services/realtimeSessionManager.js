@@ -20,9 +20,11 @@ export class RealtimeSessionManager {
     this.userToRoomId = new Map(); // userId -> roomId
     this.userProfiles = new Map(); // userId -> displayName
     this.matchmakingLock = Promise.resolve();
+    this.roomSequence = 0; // monotonic counter for unique per-match room ids
 
     setInterval(() => {
       this.sessions.sweep();
+      this.sweepQueues();
     }, 60_000).unref?.();
   }
 
@@ -121,7 +123,15 @@ export class RealtimeSessionManager {
     const queueKey = `${normalizedBookId}_${normalizedPrefType}`;
 
     return this._withMatchmakingLock(() => {
-      this.leaveMatchmaking({ userId: normalizedUserId });
+      // Fully tear down any prior session (stale queue entry, active room, or
+      // lingering conversation) so we always transition from IDLE -> SEARCHING.
+      // Without this, a user still in MATCHED/IN_CONVERSATION would trip the
+      // finite-state machine's illegal-transition guard (e.g. IN_CONVERSATION ->
+      // SEARCHING) and the join would fail with a 409. _forceIdle drives the
+      // session to IDLE (always a legal transition) and notifies any partner
+      // that this reader has left. It is fully synchronous, so the entire join
+      // body runs atomically inside the lock with no await/interleaving window.
+      this._forceIdle(normalizedUserId, 're-queue');
       this.sessions.setState(normalizedUserId, SESSION_STATES.SEARCHING, {
         bookId: normalizedBookId,
         prefType: normalizedPrefType,
@@ -131,7 +141,7 @@ export class RealtimeSessionManager {
 
       const items = this.queue.get(queueKey) || [];
       items.push({ userId: normalizedUserId, socketId, queuedAt: Date.now(), bookId: normalizedBookId, prefType: normalizedPrefType });
-      this.queue.set(queueKey, items);
+      this._setQueue(queueKey, items);
       this.userToQueueKey.set(normalizedUserId, queueKey);
 
       const match = this._tryDequeueMatch(queueKey);
@@ -165,7 +175,7 @@ export class RealtimeSessionManager {
 
     const before = this.queue.get(queueKey) || [];
     const after = before.filter((item) => item.userId !== normalizedUserId);
-    this.queue.set(queueKey, after);
+    this._setQueue(queueKey, after);
     this.userToQueueKey.delete(normalizedUserId);
 
     const session = this.sessions.get(normalizedUserId);
@@ -174,6 +184,16 @@ export class RealtimeSessionManager {
     }
 
     return { removed: after.length !== before.length };
+  }
+
+  // Single choke point for queue writes so an emptied key never lingers as an
+  // empty array (which would slowly leak Map entries, one per book+mode ever used).
+  _setQueue(queueKey, items) {
+    if (!items || items.length === 0) {
+      this.queue.delete(queueKey);
+    } else {
+      this.queue.set(queueKey, items);
+    }
   }
 
   _tryDequeueMatch(queueKey) {
@@ -197,7 +217,7 @@ export class RealtimeSessionManager {
     });
 
     if (items.length < 2) {
-      this.queue.set(queueKey, items);
+      this._setQueue(queueKey, items);
       return null;
     }
 
@@ -205,16 +225,23 @@ export class RealtimeSessionManager {
     let bIndex = items.findIndex((item) => item.userId !== a.userId);
     if (bIndex === -1) {
       // Only the same user is queued (multi-tab). Keep one entry.
-      this.queue.set(queueKey, [a]);
+      this._setQueue(queueKey, [a]);
       return null;
     }
 
     const b = items.splice(bIndex, 1)[0];
-    this.queue.set(queueKey, items);
+    this._setQueue(queueKey, items);
     this.userToQueueKey.delete(a.userId);
     this.userToQueueKey.delete(b.userId);
 
-    const roomId = normalizeId(a.bookId || queueKey.split('_')[0]);
+    // The room id MUST be unique per match, not per book. Deriving it from the
+    // book id alone would put every pair reading the same book (same mode) into
+    // one shared socket.io room -> cross-talk between unrelated pairs and
+    // roomMembers overwriting each other. Suffix a monotonic counter so each
+    // pairing gets its own isolated room.
+    const bookId = normalizeId(a.bookId || queueKey.split('_')[0]);
+    this.roomSequence += 1;
+    const roomId = `${bookId}#${this.roomSequence}`;
     return {
       queueKey,
       roomId,
@@ -257,7 +284,7 @@ export class RealtimeSessionManager {
             bookId: survivor.entry?.bookId || roomId,
             prefType: survivor.entry?.prefType || null,
           });
-          this.queue.set(queueKey, queuedItems);
+          this._setQueue(queueKey, queuedItems);
           this.userToQueueKey.set(survivor.userId, queueKey);
           this.sessions.setState(survivor.userId, SESSION_STATES.SEARCHING, {
             roomId: null,
@@ -313,6 +340,11 @@ export class RealtimeSessionManager {
     return next;
   }
 
+  isRoomMember(userId, roomId) {
+    const members = this.roomMembers.get(normalizeId(roomId));
+    return Boolean(members && members.has(normalizeId(userId)));
+  }
+
   enterConversation({ userId, roomId }) {
     const normalizedUserId = normalizeId(userId);
     const normalizedRoomId = normalizeId(roomId) || this.userToRoomId.get(normalizedUserId);
@@ -320,13 +352,20 @@ export class RealtimeSessionManager {
       return null;
     }
 
-    const session = this.sessions.get(normalizedUserId);
-    if (!session) {
-      return this.sessions.setState(normalizedUserId, SESSION_STATES.IN_CONVERSATION, { roomId: normalizedRoomId });
+    // Only an actual matched member of this room may enter the conversation.
+    // This makes the event idempotent and defends against out-of-order,
+    // duplicate, or spoofed enter events: rather than throwing an illegal
+    // transition (e.g. SEARCHING/IDLE -> IN_CONVERSATION), we simply ignore them.
+    if (!this.isRoomMember(normalizedUserId, normalizedRoomId)) {
+      return null;
     }
 
-    if (session.state === SESSION_STATES.IN_CONVERSATION) {
+    const session = this.sessions.get(normalizedUserId);
+    if (session?.state === SESSION_STATES.IN_CONVERSATION) {
       return session;
+    }
+    if (session?.state !== SESSION_STATES.MATCHED) {
+      return null;
     }
 
     return this.sessions.setState(normalizedUserId, SESSION_STATES.IN_CONVERSATION, { roomId: normalizedRoomId });
@@ -377,17 +416,22 @@ export class RealtimeSessionManager {
     return { left: true };
   }
 
-  async endSession(userId, { reason = 'ended' } = {}) {
+  // Synchronous, self-contained teardown that drives a user to IDLE: removes any
+  // queue entry, tears down any active room (notifying the partner), and clears
+  // session fields. Because it performs no awaits, callers (notably the locked
+  // join path) run it atomically with no interleaving window.
+  _forceIdle(userId, reason = 'reset') {
     const normalizedUserId = normalizeId(userId);
     if (!normalizedUserId) {
-      return { ended: false };
+      return;
     }
 
     this.leaveMatchmaking({ userId: normalizedUserId });
 
     const roomId = this.userToRoomId.get(normalizedUserId);
     if (roomId) {
-      await this.leaveRoom({ userId: normalizedUserId, roomId, reason });
+      // leaveRoom's body is synchronous; ignore the returned (already-resolved) promise.
+      this.leaveRoom({ userId: normalizedUserId, roomId, reason });
     }
 
     this.sessions.setState(normalizedUserId, SESSION_STATES.IDLE, {
@@ -396,6 +440,51 @@ export class RealtimeSessionManager {
       roomId: null,
       partnerUserId: null,
     });
+  }
+
+  // Defence-in-depth against queue/map leaks: drop queue entries whose socket is
+  // gone, delete empty queue keys, and reconcile any orphaned SEARCHING sessions.
+  // Runs on the periodic sweep alongside the session-store TTL sweep.
+  sweepQueues() {
+    let removed = 0;
+    for (const [queueKey, items] of this.queue.entries()) {
+      const live = [];
+      for (const item of items) {
+        if (this.io.sockets.sockets.get(item.socketId)) {
+          live.push(item);
+          continue;
+        }
+        removed += 1;
+        if (this.userToQueueKey.get(item.userId) === queueKey) {
+          this.userToQueueKey.delete(item.userId);
+        }
+        const session = this.sessions.get(item.userId);
+        if (session?.state === SESSION_STATES.SEARCHING) {
+          this.sessions.setState(item.userId, SESSION_STATES.IDLE, {
+            roomId: null,
+            partnerUserId: null,
+            prefType: null,
+            bookId: null,
+          });
+        }
+      }
+
+      if (live.length === 0) {
+        this.queue.delete(queueKey);
+      } else if (live.length !== items.length) {
+        this.queue.set(queueKey, live);
+      }
+    }
+    return removed;
+  }
+
+  async endSession(userId, { reason = 'ended' } = {}) {
+    const normalizedUserId = normalizeId(userId);
+    if (!normalizedUserId) {
+      return { ended: false };
+    }
+
+    this._forceIdle(normalizedUserId, reason);
 
     return { ended: true };
   }

@@ -85,19 +85,27 @@ export default function registerSocketEvents(io, sessionManager) {
       emitStats();
     });
 
+    // Room ids are canonical book ids (guessable), so every realtime relay must
+    // verify the sender is an actual member of the room before broadcasting.
+    // Otherwise any authenticated socket could inject chat/WebRTC frames into a
+    // room it was never matched into.
     socket.on('send_message', ({ roomId, message, senderId }) => {
+      if (!sessionManager.isRoomMember(socket.userId, roomId)) return;
       socket.to(roomId).emit('receive_message', { message, senderId, timestamp: new Date() });
     });
 
     socket.on('webrtc_offer', ({ roomId, offer }) => {
+      if (!sessionManager.isRoomMember(socket.userId, roomId)) return;
       socket.to(roomId).emit('webrtc_offer', { offer });
     });
 
     socket.on('webrtc_answer', ({ roomId, answer }) => {
+      if (!sessionManager.isRoomMember(socket.userId, roomId)) return;
       socket.to(roomId).emit('webrtc_answer', { answer });
     });
 
     socket.on('webrtc_ice_candidate', ({ roomId, candidate }) => {
+      if (!sessionManager.isRoomMember(socket.userId, roomId)) return;
       socket.to(roomId).emit('webrtc_ice_candidate', { candidate });
     });
 

@@ -22,18 +22,14 @@ const BookGrid = ({ books = [], loading = false, error = '', onboardingHighlight
     );
   }
 
-  if (books.length === 0) {
-    return <div className="library-empty" role="status">No books found</div>;
-  }
-
   const visibleBooks = books.filter((book) => (
     Boolean(book)
     && String(book?.title || '').trim()
     && String(book?.author || '').trim()
-    && Array.isArray(book?.genres)
-    && book.genres.length > 0
   ));
 
+  // Reached only when loading === false (guarded above) and there is genuinely
+  // nothing to show — so the empty state never flashes during initial load.
   if (visibleBooks.length === 0) {
     return (
       <div className="library-empty glass-panel" role="status">

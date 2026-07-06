@@ -165,6 +165,11 @@
     padding: 0 0.72rem;
     height: 54px;
     border-radius: 13px;
+    /* Center nav is hidden on mobile; use a 2-column layout so the avatar
+       lands in the right track (logo left, avatar far right) instead of
+       auto-placing into the now-empty middle track. */
+    grid-template-columns: 1fr auto;
+    column-gap: 0.5rem;
   }
 
   .center-nav,

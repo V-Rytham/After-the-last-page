@@ -136,7 +136,7 @@
 
 .thread-access-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.7rem;
   padding: 1rem;
@@ -159,6 +159,8 @@
 }
 
 .thread-access-cover {
+  /* Book cover/image removed from thread listing cards on all screens. */
+  display: none;
   width: 3.45rem;
   aspect-ratio: 2 / 3;
   border-radius: 0.55rem;
@@ -266,7 +268,7 @@
 
 @media (max-width: 560px) {
   .thread-access-card {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     align-items: center;
   }
 
