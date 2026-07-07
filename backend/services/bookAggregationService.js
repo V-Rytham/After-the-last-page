@@ -509,6 +509,7 @@ export const evaluateArchiveRoomEligibility = async ({ source, sourceId, timeout
 };
 
 export const canCreateArchiveRooms = async ({ source, sourceId }) => {
+  console.log("=== canCreateArchiveRooms CALLED ===");
   const summary = await evaluateArchiveRoomEligibility({ source, sourceId });
   return Boolean(summary?.eligible);
 };
