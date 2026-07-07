@@ -39,7 +39,7 @@ export const createMatchmakingController = (sessionManager) => {
 
       const access = await checkMeetAccess({ userId, source: normalizedSource, sourceBookId: normalizedSourceBookId });
       if (!access?.access) {
-        return res.status(403).json({ message: access?.message || 'Live reading rooms are only available for open-access books.' });
+        return res.status(403).json({ message: access?.message || 'Select a valid book to start a Meet chat.' });
       }
 
       let canonicalBook = null;

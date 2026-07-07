@@ -190,7 +190,7 @@ const MeetingHub = () => {
     };
 
     const onAccessDenied = ({ message }) => {
-      setMatchNotice(String(message || 'Live chats are only available for open-access books.'));
+      setMatchNotice(String(message || 'Unable to start the chat right now. Please try again.'));
     };
 
     const onReceiveMessage = ({ message }) => {

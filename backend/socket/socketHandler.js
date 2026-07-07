@@ -46,7 +46,7 @@ export default function registerSocketEvents(io, sessionManager) {
       try {
         const access = await checkMeetAccess({ userId: socket.userId, source: normalizedSource, sourceBookId: normalizedSourceBookId });
         if (!access.access) {
-          socket.emit('access_denied', { message: access?.message || 'Live reading rooms are only available for open-access books.' });
+          socket.emit('access_denied', { message: access?.message || 'Select a valid book to start a Meet chat.' });
           return;
         }
 

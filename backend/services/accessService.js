@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 import { Book } from '../models/Book.js';
 import { UserProgress } from '../models/UserProgress.js';
-import { canCreateArchiveRooms, splitCompositeSourceId } from './bookAggregationService.js';
 import { CanonicalBook } from '../models/CanonicalBook.js';
 
 export const resolveBookOrThrow = async (bookId) => {
@@ -28,44 +27,24 @@ export const checkMeetAccess = async ({ userId, bookId, source, sourceBookId }) 
     throw error;
   }
 
-  const meetAllowRestricted = String(process.env.MEET_ALLOW_RESTRICTED || '').trim().toLowerCase() === 'true';
-  if (meetAllowRestricted) {
-    return { access: true, mode: 'override' };
-  }
-
+  // Meet only pairs readers to talk (text/voice/video) — it never serves book
+  // content — so unlike BookFriend RAG or the in-app reader it does NOT require
+  // the book to be public domain. Access is simply: authenticated + a resolvable
+  // book. No Archive.org eligibility phone call is made here (that external check
+  // was the root cause of production 403s and is irrelevant to a chat feature).
   const normalizedBookId = String(bookId || '').trim();
   const normalizedSource = String(source || '').trim().toLowerCase();
   const normalizedSourceBookId = String(sourceBookId || '').trim();
 
+  // Direct join path: caller already resolved a concrete source + id.
   if (normalizedSource && normalizedSourceBookId) {
-    if (normalizedSource === 'archive' || normalizedSource === 'internetarchive') {
-      const allowed = await canCreateArchiveRooms({ source: normalizedSource, sourceId: normalizedSourceBookId });
-      if (!allowed) {
-        console.log(`Inside checkMeetAccess, sending error!`);
-        return {
-          access: false,
-          mode: 'restricted',
-          message: 'Live reading rooms are only available for open-access books.',
-        };
-      }
-    }
     return { access: true, mode: 'open' };
   }
 
+  // Pre-flight / canonical-id path (per-book eligibility checks): only require
+  // that the book resolves to a known canonical record.
   if (!normalizedBookId) {
     return { access: false, mode: 'invalid' };
-  }
-
-  const parsed = splitCompositeSourceId(normalizedBookId);
-  if (parsed?.source === 'archive' || parsed?.source === 'internetarchive') {
-    const allowed = await canCreateArchiveRooms({ source: parsed.source, sourceId: parsed.sourceId });
-    if (!allowed) {
-      return {
-        access: false,
-        mode: 'restricted',
-        message: 'Live reading rooms are only available for open-access books.',
-      };
-    }
   }
 
   const canonicalExists = await CanonicalBook.findOne({ canonical_book_id: normalizedBookId }).select('_id').lean();
