@@ -134,6 +134,123 @@
   box-shadow: none;
 }
 
+/* Live "searching" indicator (spans the full grid, no boxed panel). */
+.thread-search-status {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.1rem 0.15rem 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.thread-search-spinner {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--text-muted) 35%, transparent);
+  border-top-color: var(--accent-ink);
+  animation: thread-search-spin 0.7s linear infinite;
+}
+
+.thread-search-dots i {
+  font-style: normal;
+  opacity: 0.2;
+  animation: thread-search-dot 1.2s infinite;
+}
+
+.thread-search-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thread-search-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes thread-search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes thread-search-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.2;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+/* Skeleton placeholder cards shown while results load. */
+.thread-access-card--skeleton {
+  pointer-events: none;
+  box-shadow: none;
+}
+
+.thread-access-card--skeleton:hover {
+  transform: none;
+  border-color: var(--border-soft);
+  box-shadow: none;
+}
+
+.thread-skeleton-line,
+.thread-skeleton-btn {
+  display: block;
+  border-radius: 0.5rem;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-2) 65%, transparent) 25%,
+    color-mix(in srgb, var(--surface-1) 92%, var(--surface-2)) 50%,
+    color-mix(in srgb, var(--surface-2) 65%, transparent) 75%
+  );
+  background-size: 200% 100%;
+  animation: thread-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.thread-skeleton-line--title {
+  height: 0.95rem;
+  width: 70%;
+  margin-bottom: 0.5rem;
+}
+
+.thread-skeleton-line--author {
+  height: 0.72rem;
+  width: 45%;
+}
+
+.thread-skeleton-btn {
+  height: 2.4rem;
+  width: 6.5rem;
+  border-radius: 0.8rem;
+}
+
+@keyframes thread-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-search-spinner,
+  .thread-search-dots i,
+  .thread-skeleton-line,
+  .thread-skeleton-btn {
+    animation: none;
+  }
+
+  .thread-search-dots i {
+    opacity: 1;
+  }
+}
+
 .thread-access-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

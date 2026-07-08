@@ -126,7 +126,7 @@
 
 .profile-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.9fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }

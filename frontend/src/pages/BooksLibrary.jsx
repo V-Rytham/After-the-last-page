@@ -185,7 +185,11 @@ const loadDeskData = async (currentUser, { force = false } = {}) => {
 const BooksLibrary = ({ currentUser }) => {
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
   const [books, setBooks] = useState([]);
-  const [sessions, setSessions] = useState({});
+  // Seed from localStorage so reading progress (Continue reading / Recent
+  // activity) is present on the very first render. Previously the localStorage
+  // sessions were only hydrated by the window `focus`/`storage` handler, so on
+  // first navigation these cards rendered empty until the tab lost/regained focus.
+  const [sessions, setSessions] = useState(() => getReadingSessionsForCurrentUser());
   const [contentRecommendations, setContentRecommendations] = useState([]);
   const [popularRecommendations, setPopularRecommendations] = useState([]);
   const [recommendationBase, setRecommendationBase] = useState(null);
@@ -221,7 +225,12 @@ const BooksLibrary = ({ currentUser }) => {
       setError('');
       const payload = await loadDeskData(currentUser, { force });
       setBooks(Array.isArray(payload.books) ? payload.books : []);
-      setSessions(payload.sessions && typeof payload.sessions === 'object' ? payload.sessions : {});
+      // Merge live localStorage reading sessions over the server payload. The
+      // desk cards are driven by local reading progress; hydrating it here (not
+      // only in the focus/storage handler) is what makes the cards appear on the
+      // first render instead of after the browser regains focus.
+      const apiSessions = payload.sessions && typeof payload.sessions === 'object' ? payload.sessions : {};
+      setSessions({ ...apiSessions, ...getReadingSessionsForCurrentUser() });
       setContentRecommendations(Array.isArray(payload.contentRecommendations) ? payload.contentRecommendations : []);
       setPopularRecommendations(Array.isArray(payload.popularRecommendations) ? payload.popularRecommendations : []);
       setRecommendationBase(payload.recommendationBase || null);

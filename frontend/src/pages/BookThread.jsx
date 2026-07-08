@@ -1034,8 +1034,12 @@ export default function BookThread() {
 
             <section className="thread-list-surface" aria-live="polite">
               {searchLoading && (
-                <div className="empty-state">
-                  <h3 className="font-serif">Searching threads…</h3>
+                <div className="thread-search-status" role="status" aria-live="polite">
+                  <span className="thread-search-spinner" aria-hidden="true" />
+                  <span className="thread-search-status-text">
+                    Searching threads
+                    <span className="thread-search-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span>
+                  </span>
                 </div>
               )}
 

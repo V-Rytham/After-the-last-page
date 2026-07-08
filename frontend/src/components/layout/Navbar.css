@@ -219,8 +219,19 @@
     place-items: center;
   }
 
-  .drawer-avatar-wrap { padding-block: 0.4rem 0.15rem; }
+  .drawer-avatar-wrap {
+    padding-block: 0.4rem 0.15rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+  }
   .drawer-avatar { width: 3.2rem; height: 3.2rem; }
+  .drawer-identity-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
 .drawer-guest-label {
   display: inline-flex;
   min-height: 2.1rem;

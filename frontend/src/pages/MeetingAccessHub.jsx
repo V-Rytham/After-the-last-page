@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Sparkles } from 'lucide-react';
+import { Search } from 'lucide-react';
 import useGlobalSearch from '../hooks/useGlobalSearch';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
@@ -184,13 +184,6 @@ export default function MeetingAccessHub() {
               </div>
             </article>
           ))}
-          <div className="meeting-loading-caption glass-panel">
-            <Sparkles size={16} aria-hidden="true" />
-            <div>
-              <strong>Preparing reader profiles</strong>
-              <p>Matching active readers and books for meaningful conversations.</p>
-            </div>
-          </div>
         </section>
       ) : null}
 

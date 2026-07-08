@@ -23,7 +23,6 @@ const initialSignupState = {
   email: '',
   password: '',
   confirmPassword: '',
-  profileImageFile: null,
 };
 
 const initialLoginState = {
@@ -32,12 +31,6 @@ const initialLoginState = {
 };
 
 const normalizeUsername = (value) => String(value || '').trim();
-const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(String(reader.result || ''));
-  reader.onerror = () => reject(new Error('Unable to read this file.'));
-  reader.readAsDataURL(file);
-});
 
 const getUsernameValidationMessage = (username) => {
   const normalized = normalizeUsername(username);
@@ -170,12 +163,7 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
   };
 
   const handleSignupChange = (event) => {
-    const { name, value, files, type } = event.target;
-    if (type === 'file') {
-      setSignupForm((prev) => ({ ...prev, profileImageFile: files?.[0] || null }));
-      return;
-    }
-
+    const { name, value } = event.target;
     setSignupForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -237,17 +225,12 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
     setSubmitting(true);
 
     try {
-      const profileImageData = signupForm.profileImageFile
-        ? await readFileAsDataUrl(signupForm.profileImageFile)
-        : '';
-
       const { data } = await api.post('/users/signup', {
         name: signupForm.name,
         username: normalizedSignupUsername,
         bio: signupForm.bio,
         email: signupForm.email,
         password: signupForm.password,
-        profileImageData,
       });
 
       await completeAuthSession(data.token, data, { redirectToOnboarding: true });
@@ -309,7 +292,6 @@ export default function AuthPage({ onAuthSuccess, currentUser }) {
                 <label className="auth-label"><span>Password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="password" type="password" value={signupForm.password} onChange={handleSignupChange} className="auth-input" autoComplete="new-password" minLength={6} required /></span></label>
                 <label className="auth-label"><span>Confirm password</span><span className="auth-input-wrap"><Lock size={18} strokeWidth={2} className="auth-field-icon" /><input name="confirmPassword" type="password" value={signupForm.confirmPassword} onChange={handleSignupChange} className="auth-input" autoComplete="new-password" minLength={6} required /></span></label>
               </div>
-              <label className="auth-label"><span>Profile image <em>(optional)</em></span><input name="profileImageFile" type="file" accept="image/*" onChange={handleSignupChange} className="auth-input" /></label>
               <button type="submit" className="btn-primary auth-submit" disabled={submitting || usernameState.status === 'checking'}>{submitting ? 'Creating account...' : 'Create account'} <ArrowRight size={18} /></button>
             </form>
           )}

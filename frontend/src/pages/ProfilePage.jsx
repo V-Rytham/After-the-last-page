@@ -188,7 +188,6 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
   const username = profile?.username || '—';
   const bio = String(profile?.bio || '').trim();
   const joinedDate = formatJoinedDate(profile?.joinedAt);
-  const stats = profile?.stats || EMPTY_STATS;
   const profileImageUrl = profile?.profileImageUrl || '';
 
   useEffect(() => {
@@ -370,14 +369,30 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
           <div className="profile-identity-copy">
             <h2 className="font-serif">{displayName}</h2>
             <div className="profile-meta-line">
-              <span>{username}</span>
-              <span aria-hidden="true">•</span>
+              {profile?.username ? (
+                <>
+                  <span>{username}</span>
+                  <span aria-hidden="true">•</span>
+                </>
+              ) : null}
               <span>Joined {joinedDate}</span>
               {bio ? <span className="profile-bio-inline">{bio}</span> : null}
             </div>
           </div>
         </div>
 
+      </section>
+
+      <section className="profile-card glass-panel profile-genres-top" aria-label="Preferred genres">
+        <div className="profile-card-head">
+          <h2 className="font-serif">Preferred genres</h2>
+        </div>
+        <p className="profile-genre-helper">Select a few genres and your library will be curated instantly.</p>
+        <GenreSelector
+          selectedGenres={selectedGenres}
+          disabled={savingGenres}
+          onChange={(next) => setSelectedGenres(Array.from(new Set(next.map(normalizeGenre).filter(Boolean))))}
+        />
       </section>
 
       <section className="profile-grid">
@@ -478,37 +493,6 @@ const ProfilePage = ({ currentUser, onUserUpdate }) => {
             )}
           </section>
         </div>
-
-        <aside className="profile-column profile-column-side">
-          <section className="profile-card glass-panel" aria-label="Reading stats">
-            <div className="profile-card-head">
-              <h2 className="font-serif">Reading stats</h2>
-            </div>
-
-            <div className="profile-stats-grid">
-              <div className="profile-stat-tile">
-                <strong>{loading ? '…' : stats.booksCompleted}</strong>
-                <span>Books completed</span>
-              </div>
-              <div className="profile-stat-tile">
-                <strong>{loading ? '…' : stats.discussionsParticipated}</strong>
-                <span>Discussions participated</span>
-              </div>
-            </div>
-          </section>
-          <section className="profile-card glass-panel" aria-label="Preferred genres">
-            <div className="profile-card-head">
-              <h2 className="font-serif">Preferred genres</h2>
-            </div>
-            <p className="profile-genre-helper">Select a few genres and your library will be curated instantly.</p>
-            <GenreSelector
-              selectedGenres={selectedGenres}
-              disabled={savingGenres}
-              onChange={(next) => setSelectedGenres(Array.from(new Set(next.map(normalizeGenre).filter(Boolean))))}
-            />
-          </section>
-
-        </aside>
       </section>
     </div>
   );

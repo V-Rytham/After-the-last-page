@@ -76,9 +76,26 @@ export default function ThreadAccessHub() {
 
       <section className="thread-access-grid">
         {hasQuery && loading && (
-          <div className="thread-access-loading glass-panel">
-            <p>Searching…</p>
-          </div>
+          <>
+            <div className="thread-search-status" role="status" aria-live="polite">
+              <span className="thread-search-spinner" aria-hidden="true" />
+              <span className="thread-search-status-text">
+                Searching the library
+                <span className="thread-search-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span>
+              </span>
+            </div>
+            {Array.from({ length: 6 }).map((_, index) => (
+              <article key={`thread-skeleton-${index}`} className="thread-access-card thread-access-card--skeleton" aria-hidden="true">
+                <div className="thread-access-card-body">
+                  <span className="thread-skeleton-line thread-skeleton-line--title" />
+                  <span className="thread-skeleton-line thread-skeleton-line--author" />
+                </div>
+                <div className="thread-access-actions">
+                  <span className="thread-skeleton-btn" />
+                </div>
+              </article>
+            ))}
+          </>
         )}
 
         {hasQuery && !loading && error && (

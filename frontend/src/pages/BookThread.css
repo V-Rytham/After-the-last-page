@@ -588,6 +588,68 @@
   font-size: 1.25rem;
 }
 
+/* Live "searching" indicator for the thread search (replaces static text). */
+.thread-search-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.85rem 0.2rem;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.thread-search-spinner {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--text-muted) 35%, transparent);
+  border-top-color: var(--accent-ink);
+  animation: thread-search-spin 0.7s linear infinite;
+}
+
+.thread-search-dots i {
+  font-style: normal;
+  opacity: 0.2;
+  animation: thread-search-dot 1.2s infinite;
+}
+
+.thread-search-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thread-search-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes thread-search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes thread-search-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.2;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-search-spinner,
+  .thread-search-dots i {
+    animation: none;
+  }
+
+  .thread-search-dots i {
+    opacity: 1;
+  }
+}
+
 .button-reset {
   width: fit-content;
   padding: 0;

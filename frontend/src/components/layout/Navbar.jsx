@@ -95,6 +95,11 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
     navigate('/profile');
   };
 
+  const handleDrawerViewProfile = () => {
+    setDrawerOpen(false);
+    navigate('/profile');
+  };
+
   const isMember = Boolean(currentUser && !currentUser.isAnonymous);
 
   const handleSignOut = async () => {
@@ -187,7 +192,14 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
           </header>
 
           <div className="drawer-avatar-wrap">
-            {isMember ? <ProfileAvatar user={currentUser} className="drawer-avatar" onClick={() => setDrawerOpen(false)} /> : <span className="drawer-guest-label">Guest</span>}
+            {isMember ? (
+              <>
+                <ProfileAvatar user={currentUser} className="drawer-avatar" onClick={handleDrawerViewProfile} label="View profile" />
+                <span className="drawer-identity-name">{currentUser?.name || currentUser?.username || 'Reader'}</span>
+              </>
+            ) : (
+              <span className="drawer-guest-label">Guest</span>
+            )}
           </div>
 
           <nav className="drawer-nav" aria-label="Mobile navigation">
@@ -219,7 +231,10 @@ const Navbar = ({ currentUser, onLogout, uiTheme, onThemeChange }) => {
             </div>
 
             {isMember ? (
-              <button type="button" className="drawer-action-row is-danger" onClick={handleSignOut}>Sign out</button>
+              <>
+                <button type="button" className="drawer-action-row" onClick={handleDrawerViewProfile}>View profile</button>
+                <button type="button" className="drawer-action-row is-danger" onClick={handleSignOut}>Sign out</button>
+              </>
             ) : (
               <button type="button" className="drawer-action-row" onClick={() => { setDrawerOpen(false); navigate('/auth'); }}>Enter</button>
             )}
