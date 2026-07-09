@@ -5,6 +5,29 @@ import { meetSocket, syncMeetSocketAuth } from '../utils/socket';
 const SocketContext = createContext(null);
 const SOCKET_CONNECT_TIMEOUT_MS = 3500;
 
+/**
+ * Resolves once the shared socket is connected, or rejects on error/timeout.
+ * Listeners are always removed on every exit path, so repeated calls cannot
+ * accumulate handlers on the singleton.
+ */
+const waitForConnect = (timeoutMs) => new Promise((resolve, reject) => {
+  const settle = (finish) => (value) => {
+    window.clearTimeout(timer);
+    meetSocket.off('connect', onConnect);
+    meetSocket.off('connect_error', onConnectError);
+    finish(value);
+  };
+
+  const onConnect = settle(resolve);
+  const onConnectError = settle((error) => reject(error || new Error('Socket connection failed.')));
+  const onTimeout = settle(() => reject(new Error('Socket connection timed out.')));
+  const timer = window.setTimeout(onTimeout, timeoutMs);
+
+  meetSocket.on('connect', onConnect);
+  meetSocket.on('connect_error', onConnectError);
+  meetSocket.connect();
+});
+
 export const SocketProvider = ({ currentUser, children }) => {
   const [socketConnected, setSocketConnected] = useState(Boolean(meetSocket.connected));
   const [socketConnecting, setSocketConnecting] = useState(false);
@@ -40,59 +63,34 @@ export const SocketProvider = ({ currentUser, children }) => {
   }, []);
 
   const ensureConnected = useCallback(async ({ forceReconnect = false } = {}) => {
-    syncMeetSocketAuth(currentUser);
+    // The handshake sends `auth` once, at connect time. A token that changed
+    // while we were connected only takes effect after a reconnect.
+    const credentialsChanged = syncMeetSocketAuth(currentUser);
 
-    if (forceReconnect && meetSocket.connected) {
+    if ((forceReconnect || credentialsChanged) && meetSocket.connected) {
       meetSocket.disconnect();
     }
 
-    if (meetSocket.connected) {
-      return meetSocket;
-    }
+    if (meetSocket.connected) return meetSocket;
 
     setSocketConnecting(true);
-
-    await new Promise((resolve, reject) => {
-      const timeout = window.setTimeout(() => {
-        meetSocket.off('connect', onConnect);
-        meetSocket.off('connect_error', onConnectError);
-        reject(new Error('Socket connection timed out.'));
-      }, SOCKET_CONNECT_TIMEOUT_MS);
-
-      const onConnect = () => {
-        window.clearTimeout(timeout);
-        meetSocket.off('connect', onConnect);
-        meetSocket.off('connect_error', onConnectError);
-        resolve();
-      };
-
-      const onConnectError = (error) => {
-        window.clearTimeout(timeout);
-        meetSocket.off('connect', onConnect);
-        meetSocket.off('connect_error', onConnectError);
-        reject(error || new Error('Socket connection failed.'));
-      };
-
-      meetSocket.on('connect', onConnect);
-      meetSocket.on('connect_error', onConnectError);
-      meetSocket.connect();
-    });
-
+    try {
+      await waitForConnect(SOCKET_CONNECT_TIMEOUT_MS);
+    } finally {
+      setSocketConnecting(false);
+    }
     return meetSocket;
   }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser) {
-      if (meetSocket.connected) {
-        meetSocket.disconnect();
-      }
+      if (meetSocket.connected) meetSocket.disconnect();
       return;
     }
 
-    syncMeetSocketAuth(currentUser);
-    if (!meetSocket.connected) {
-      meetSocket.connect();
-    }
+    const credentialsChanged = syncMeetSocketAuth(currentUser);
+    if (credentialsChanged && meetSocket.connected) meetSocket.disconnect();
+    if (!meetSocket.connected) meetSocket.connect();
   }, [currentUser]);
 
   const value = useMemo(() => ({

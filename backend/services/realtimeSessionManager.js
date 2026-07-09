@@ -1,43 +1,69 @@
-import { SessionStore } from './sessionStore.js';
 import { SESSION_STATES } from '../utils/sessionStates.js';
+import { keys, userChannel } from './realtime/keys.js';
+import { MatchmakingQueue } from './realtime/matchmakingQueue.js';
+import { SessionStore } from './realtime/sessionStore.js';
 
 const normalizeId = (value) => String(value || '').trim();
 const MATCH_PREF_TYPES = new Set(['text', 'voice', 'video']);
+const ROOM_TTL_MS = 6 * 60 * 60 * 1000;
 
+// A dropped transport, a page refresh, or a websocket upgrade all surface as a
+// disconnect. Tearing the room down immediately would end a conversation over a
+// momentary blip, so give the reader a window to come back on any instance.
+const RECONNECT_GRACE_MS = 10_000;
+
+const badRequest = (message) => {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+};
+
+/**
+ * Coordinates presence, matchmaking and rooms across every backend instance.
+ *
+ * All shared state lives in Redis, and every socket lookup goes through the
+ * Socket.IO adapter rather than `io.sockets.sockets` (which only ever sees the
+ * sockets attached to the current process).
+ */
 export class RealtimeSessionManager {
-  constructor(io) {
+  constructor(io, redis) {
+    if (!io) throw new Error('io is required');
+    if (!redis) throw new Error('redis is required');
+
     this.io = io;
-
-    this.sessions = new SessionStore({ ttlMs: 30 * 60 * 1000 });
-
-    this.userSockets = new Map(); // userId -> Set(socketId)
-    this.socketToUser = new Map(); // socketId -> userId
-
-    this.queue = new Map(); // queueKey -> Array<{ userId, socketId, queuedAt }>
-    this.userToQueueKey = new Map(); // userId -> queueKey
-
-    this.roomMembers = new Map(); // roomId -> Set(userId)
-    this.userToRoomId = new Map(); // userId -> roomId
-    this.userProfiles = new Map(); // userId -> displayName
-    this.matchmakingLock = Promise.resolve();
-    this.roomSequence = 0; // monotonic counter for unique per-match room ids
-
-    setInterval(() => {
-      this.sessions.sweep();
-      this.sweepQueues();
-    }, 60_000).unref?.();
+    this.redis = redis;
+    this.sessions = new SessionStore(redis);
+    this.queue = new MatchmakingQueue(redis);
   }
 
-  getSession(userId) {
-    return this.sessions.get(userId) || { userId: normalizeId(userId), state: SESSION_STATES.IDLE };
+  /** True when the user has at least one live socket on ANY instance. */
+  async isOnline(userId) {
+    const sockets = await this.io.in(userChannel(normalizeId(userId))).fetchSockets();
+    return sockets.length > 0;
   }
 
-  getPublicSession(userId) {
-    const session = this.getSession(userId);
-    if (!session) return null;
-    const { partnerUserId, socketId, ...rest } = session;
+  /** Cluster-wide connected socket count. */
+  async onlineCount() {
+    const sockets = await this.io.of('/').adapter.sockets(new Set());
+    return sockets.size;
+  }
+
+  searchingCount() {
+    return this.queue.searchingCount();
+  }
+
+  emitToUser(userId, event, payload) {
+    this.io.to(userChannel(normalizeId(userId))).emit(event, payload);
+  }
+
+  async getSession(userId) {
+    const session = await this.sessions.get(userId);
+    return session || { userId: normalizeId(userId), state: SESSION_STATES.IDLE };
+  }
+
+  async getPublicSession(userId) {
+    const { partnerUserId, ...rest } = await this.getSession(userId);
     void partnerUserId;
-    void socketId;
     return rest;
   }
 
@@ -45,447 +71,236 @@ export class RealtimeSessionManager {
     return this.sessions.upsert(userId, patch);
   }
 
-  registerSocket({ userId, socketId, displayName = "Reader" }) {
-    const normalizedUserId = normalizeId(userId);
-    const normalizedSocketId = normalizeId(socketId);
-    if (!normalizedUserId || !normalizedSocketId) {
+  setSessionState(userId, state, extra = {}) {
+    return this.sessions.setState(userId, state, extra);
+  }
+
+  /**
+   * Registration is implicit: the socket joins a room named for its user, which
+   * the adapter replicates cluster-wide. That single primitive replaces the old
+   * userSockets/socketToUser/_getPrimarySocketId bookkeeping and, because
+   * Socket.IO removes a socket from its rooms on disconnect, it cannot leak.
+   */
+  async registerSocket(socket) {
+    await socket.join(userChannel(socket.userId));
+
+    // A reconnecting reader arrives on a brand-new socket that belongs to none
+    // of the previous socket's rooms. Without this, the session survives the
+    // blip but every relay silently stops reaching them.
+    const roomId = await this.redis.get(keys.userRoom(socket.userId));
+    if (roomId && (await this.isRoomMember(socket.userId, roomId))) {
+      await socket.join(roomId);
+    }
+  }
+
+  async unregisterSocket(socket, reason = 'disconnect') {
+    // Socket.IO removes the socket from its rooms before this handler runs, so a
+    // zero count means every tab of this reader is gone -- for now.
+    const userId = socket.userId;
+    if (await this.isOnline(userId)) return;
+
+    // A reader waiting in the queue must leave it at once: leaving a ghost there
+    // would pair a live reader with someone who is no longer connected.
+    const { state } = await this.getSession(userId);
+    if (state !== SESSION_STATES.MATCHED && state !== SESSION_STATES.IN_CONVERSATION) {
+      await this.endSession(userId, { reason });
       return;
     }
 
-    this.socketToUser.set(normalizedSocketId, normalizedUserId);
-    this.userProfiles.set(normalizedUserId, String(displayName || "Reader").trim() || "Reader");
-
-    const existing = this.userSockets.get(normalizedUserId) || new Set();
-    existing.add(normalizedSocketId);
-    this.userSockets.set(normalizedUserId, existing);
+    // A matched reader keeps their room for a short window so a transport blip
+    // does not end the conversation.
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (await this.isOnline(userId)) return; // came back
+        await this.endSession(userId, { reason });
+      })().catch(() => {});
+    }, RECONNECT_GRACE_MS);
+    timer.unref?.();
   }
 
-  unregisterSocket({ socketId, reason = 'disconnect' }) {
-    const normalizedSocketId = normalizeId(socketId);
-    const userId = this.socketToUser.get(normalizedSocketId);
-    if (!userId) {
-      return;
-    }
-
-    this.socketToUser.delete(normalizedSocketId);
-    const sockets = this.userSockets.get(userId);
-    if (sockets) {
-      sockets.delete(normalizedSocketId);
-      if (sockets.size === 0) {
-        this.userSockets.delete(userId);
-        void this.endSession(userId, { reason });
-      } else {
-        this.userSockets.set(userId, sockets);
-      }
-    } else {
-      void this.endSession(userId, { reason });
-    }
-  }
-
-  _getPrimarySocketId(userId) {
-    const sockets = this.userSockets.get(normalizeId(userId));
-    if (!sockets || sockets.size === 0) {
-      return null;
-    }
-    // Pick the most recently added socket (Set iteration order preserves insertion).
-    let last = null;
-    for (const socketId of sockets.values()) {
-      last = socketId;
-    }
-    return last;
-  }
-
-  async joinMatchmaking({ userId, displayName = "Reader", bookId, prefType }) {
+  async joinMatchmaking({ userId, displayName = 'Reader', bookId, prefType }) {
     const normalizedUserId = normalizeId(userId);
     const normalizedBookId = normalizeId(bookId);
-    this.userProfiles.set(normalizedUserId, String(displayName || "Reader").trim() || "Reader");
-    const requestedPrefType = normalizeId(prefType).toLowerCase();
-    const normalizedPrefType = requestedPrefType || 'text';
-    if (!normalizedUserId || !normalizedBookId) {
-      const error = new Error('userId and bookId are required');
-      error.statusCode = 400;
-      throw error;
-    }
+    const normalizedPrefType = normalizeId(prefType).toLowerCase() || 'text';
 
+    if (!normalizedUserId || !normalizedBookId) throw badRequest('userId and bookId are required');
     if (!MATCH_PREF_TYPES.has(normalizedPrefType)) {
-      const error = new Error('Invalid prefType. Supported values are text, voice, or video.');
-      error.statusCode = 400;
-      throw error;
+      throw badRequest('Invalid prefType. Supported values are text, voice, or video.');
     }
 
-    const socketId = this._getPrimarySocketId(normalizedUserId);
-    if (!socketId) {
+    if (!(await this.isOnline(normalizedUserId))) {
       const error = new Error('No active socket connection.');
       error.statusCode = 409;
       throw error;
     }
 
-    const queueKey = `${normalizedBookId}_${normalizedPrefType}`;
-
-    return this._withMatchmakingLock(() => {
-      // Fully tear down any prior session (stale queue entry, active room, or
-      // lingering conversation) so we always transition from IDLE -> SEARCHING.
-      // Without this, a user still in MATCHED/IN_CONVERSATION would trip the
-      // finite-state machine's illegal-transition guard (e.g. IN_CONVERSATION ->
-      // SEARCHING) and the join would fail with a 409. _forceIdle drives the
-      // session to IDLE (always a legal transition) and notifies any partner
-      // that this reader has left. It is fully synchronous, so the entire join
-      // body runs atomically inside the lock with no await/interleaving window.
-      this._forceIdle(normalizedUserId, 're-queue');
-      this.sessions.setState(normalizedUserId, SESSION_STATES.SEARCHING, {
-        bookId: normalizedBookId,
-        prefType: normalizedPrefType,
-        roomId: null,
-        partnerUserId: null,
-      });
-
-      const items = this.queue.get(queueKey) || [];
-      items.push({ userId: normalizedUserId, socketId, queuedAt: Date.now(), bookId: normalizedBookId, prefType: normalizedPrefType });
-      this._setQueue(queueKey, items);
-      this.userToQueueKey.set(normalizedUserId, queueKey);
-
-      const match = this._tryDequeueMatch(queueKey);
-      if (!match) {
-        return { matched: false };
-      }
-
-      const finalizedMatch = this._finalizeMatch(match);
-      if (!finalizedMatch) {
-        return { matched: false };
-      }
-
-      return { matched: true, roomId: finalizedMatch.roomId };
+    // Tear down any prior room/queue entry so we always transition from IDLE.
+    await this.#forceIdle(normalizedUserId, 're-queue');
+    await this.sessions.setState(normalizedUserId, SESSION_STATES.SEARCHING, {
+      bookId: normalizedBookId,
+      prefType: normalizedPrefType,
+      roomId: null,
+      partnerUserId: null,
     });
-  }
+    await this.redis.set(keys.userQueue(normalizedUserId), MatchmakingQueue.queueKeyFor(normalizedBookId, normalizedPrefType), 'PX', ROOM_TTL_MS);
 
-  leaveMatchmaking({ userId }) {
-    const normalizedUserId = normalizeId(userId);
-    if (!normalizedUserId) {
-      return { removed: false };
-    }
-
-    const queueKey = this.userToQueueKey.get(normalizedUserId);
-    if (!queueKey) {
-      const session = this.sessions.get(normalizedUserId);
-      if (session?.state === SESSION_STATES.SEARCHING) {
-        this.sessions.setState(normalizedUserId, SESSION_STATES.IDLE, { prefType: null, bookId: null });
-      }
-      return { removed: false };
-    }
-
-    const before = this.queue.get(queueKey) || [];
-    const after = before.filter((item) => item.userId !== normalizedUserId);
-    this._setQueue(queueKey, after);
-    this.userToQueueKey.delete(normalizedUserId);
-
-    const session = this.sessions.get(normalizedUserId);
-    if (session?.state === SESSION_STATES.SEARCHING) {
-      this.sessions.setState(normalizedUserId, SESSION_STATES.IDLE, { prefType: null, bookId: null });
-    }
-
-    return { removed: after.length !== before.length };
-  }
-
-  // Single choke point for queue writes so an emptied key never lingers as an
-  // empty array (which would slowly leak Map entries, one per book+mode ever used).
-  _setQueue(queueKey, items) {
-    if (!items || items.length === 0) {
-      this.queue.delete(queueKey);
-    } else {
-      this.queue.set(queueKey, items);
-    }
-  }
-
-  _tryDequeueMatch(queueKey) {
-    const staleUserIds = [];
-    const items = (this.queue.get(queueKey) || []).filter((item) => {
-      const liveSocket = this.io.sockets.sockets.get(item.socketId);
-      if (!liveSocket) {
-        staleUserIds.push(item.userId);
-      }
-      return Boolean(liveSocket);
+    const pair = await this.queue.enqueueAndPair({
+      userId: normalizedUserId,
+      displayName: String(displayName || 'Reader').trim() || 'Reader',
+      bookId: normalizedBookId,
+      prefType: normalizedPrefType,
     });
 
-    staleUserIds.forEach((userId) => {
-      this.userToQueueKey.delete(userId);
-      this.sessions.setState(userId, SESSION_STATES.IDLE, {
-        roomId: null,
-        partnerUserId: null,
-        prefType: null,
-        bookId: null,
-      });
-    });
+    if (!pair) return { matched: false };
 
-    if (items.length < 2) {
-      this._setQueue(queueKey, items);
-      return null;
-    }
-
-    const a = items.shift();
-    let bIndex = items.findIndex((item) => item.userId !== a.userId);
-    if (bIndex === -1) {
-      // Only the same user is queued (multi-tab). Keep one entry.
-      this._setQueue(queueKey, [a]);
-      return null;
-    }
-
-    const b = items.splice(bIndex, 1)[0];
-    this._setQueue(queueKey, items);
-    this.userToQueueKey.delete(a.userId);
-    this.userToQueueKey.delete(b.userId);
-
-    // The room id MUST be unique per match, not per book. Deriving it from the
-    // book id alone would put every pair reading the same book (same mode) into
-    // one shared socket.io room -> cross-talk between unrelated pairs and
-    // roomMembers overwriting each other. Suffix a monotonic counter so each
-    // pairing gets its own isolated room.
-    const bookId = normalizeId(a.bookId || queueKey.split('_')[0]);
-    this.roomSequence += 1;
-    const roomId = `${bookId}#${this.roomSequence}`;
-    return {
-      queueKey,
-      roomId,
-      aUserId: a.userId,
-      aSocketId: a.socketId,
-      bUserId: b.userId,
-      bSocketId: b.socketId,
-      aEntry: a,
-      bEntry: b,
-    };
+    const finalized = await this.#finalizeMatch(pair);
+    return finalized ? { matched: true, roomId: finalized.roomId } : { matched: false };
   }
 
-  _finalizeMatch(match) {
-    const {
-      roomId, queueKey, aUserId, aSocketId, bUserId, bSocketId, aEntry, bEntry,
-    } = match;
-    const aSocket = this.io.sockets.sockets.get(aSocketId);
-    const bSocket = this.io.sockets.sockets.get(bSocketId);
-    if (!aSocket || !bSocket) {
-      const survivor = aSocket ? { userId: aUserId, socketId: aSocketId, entry: aEntry } : (bSocket ? { userId: bUserId, socketId: bSocketId, entry: bEntry } : null);
-      const missingUserId = aSocket ? bUserId : (bSocket ? aUserId : null);
+  /**
+   * A queued reader may have disconnected between enqueue and pairing. Drop the
+   * dead one, put the survivor back at the head of the queue, and tell them.
+   */
+  async #finalizeMatch({ roomId, a, b }) {
+    const [aOnline, bOnline] = await Promise.all([this.isOnline(a.userId), this.isOnline(b.userId)]);
 
-      if (missingUserId) {
-        this.sessions.setState(missingUserId, SESSION_STATES.IDLE, {
-          roomId: null,
-          partnerUserId: null,
-          prefType: null,
-          bookId: null,
-        });
-      }
+    if (!aOnline || !bOnline) {
+      const dead = aOnline ? b : a;
+      const survivor = aOnline ? a : (bOnline ? b : null);
+
+      await this.#resetToIdle(dead.userId);
 
       if (survivor) {
-        const liveSocket = this.io.sockets.sockets.get(survivor.socketId);
-        if (liveSocket) {
-          const queuedItems = this.queue.get(queueKey) || [];
-          queuedItems.unshift({
-            userId: survivor.userId,
-            socketId: survivor.socketId,
-            queuedAt: Date.now(),
-            bookId: survivor.entry?.bookId || roomId,
-            prefType: survivor.entry?.prefType || null,
-          });
-          this._setQueue(queueKey, queuedItems);
-          this.userToQueueKey.set(survivor.userId, queueKey);
-          this.sessions.setState(survivor.userId, SESSION_STATES.SEARCHING, {
-            roomId: null,
-            partnerUserId: null,
-          });
-          liveSocket.emit('match_requeued', {
-            message: 'The other reader disconnected before the chat opened. We are finding a new match.',
-          });
-        } else {
-          this.sessions.setState(survivor.userId, SESSION_STATES.IDLE, {
-            roomId: null,
-            partnerUserId: null,
-            prefType: null,
-            bookId: null,
-          });
-        }
+        await this.queue.requeueFront(survivor);
+        await this.sessions.setState(survivor.userId, SESSION_STATES.SEARCHING, { roomId: null, partnerUserId: null });
+        this.emitToUser(survivor.userId, 'match_requeued', {
+          message: 'The other reader disconnected before the chat opened. We are finding a new match.',
+        });
       }
       return null;
     }
 
-    aSocket.join(roomId);
-    bSocket.join(roomId);
+    await Promise.all([
+      this.io.in(userChannel(a.userId)).socketsJoin(roomId),
+      this.io.in(userChannel(b.userId)).socketsJoin(roomId),
+    ]);
 
-    this.roomMembers.set(roomId, new Set([aUserId, bUserId]));
-    this.userToRoomId.set(aUserId, roomId);
-    this.userToRoomId.set(bUserId, roomId);
+    await this.redis
+      .multi()
+      .sadd(keys.room(roomId), a.userId, b.userId)
+      .pexpire(keys.room(roomId), ROOM_TTL_MS)
+      .set(keys.userRoom(a.userId), roomId, 'PX', ROOM_TTL_MS)
+      .set(keys.userRoom(b.userId), roomId, 'PX', ROOM_TTL_MS)
+      .del(keys.userQueue(a.userId), keys.userQueue(b.userId))
+      .exec();
 
-    this.sessions.setState(aUserId, SESSION_STATES.MATCHED, { roomId, partnerUserId: bUserId });
-    this.sessions.setState(bUserId, SESSION_STATES.MATCHED, { roomId, partnerUserId: aUserId });
+    await Promise.all([
+      this.sessions.setState(a.userId, SESSION_STATES.MATCHED, { roomId, partnerUserId: b.userId }),
+      this.sessions.setState(b.userId, SESSION_STATES.MATCHED, { roomId, partnerUserId: a.userId }),
+    ]);
 
-    const aDisplayName = String(this.userProfiles.get(aUserId) || 'Reader').trim();
-    const bDisplayName = String(this.userProfiles.get(bUserId) || 'Reader').trim();
-
-    aSocket.emit('match_found', {
-      roomId,
-      role: 'initiator',
-      message: 'You have been paired with a reader.',
-      partnerUsername: bDisplayName || null,
+    this.emitToUser(a.userId, 'match_found', {
+      roomId, role: 'initiator', message: 'You have been paired with a reader.', partnerUsername: b.displayName || null,
     });
-    bSocket.emit('match_found', {
-      roomId,
-      role: 'responder',
-      message: 'You have been paired with a reader.',
-      partnerUsername: aDisplayName || null,
+    this.emitToUser(b.userId, 'match_found', {
+      roomId, role: 'responder', message: 'You have been paired with a reader.', partnerUsername: a.displayName || null,
     });
-    return { roomId, aUserId, bUserId };
+
+    return { roomId };
   }
 
-  _withMatchmakingLock(operation) {
-    const run = () => Promise.resolve().then(operation);
-    const next = this.matchmakingLock.then(run, run);
-    this.matchmakingLock = next.catch(() => {});
-    return next;
-  }
-
-  isRoomMember(userId, roomId) {
-    const members = this.roomMembers.get(normalizeId(roomId));
-    return Boolean(members && members.has(normalizeId(userId)));
-  }
-
-  enterConversation({ userId, roomId }) {
+  async leaveMatchmaking({ userId }) {
     const normalizedUserId = normalizeId(userId);
-    const normalizedRoomId = normalizeId(roomId) || this.userToRoomId.get(normalizedUserId);
-    if (!normalizedUserId || !normalizedRoomId) {
-      return null;
+    if (!normalizedUserId) return { removed: false };
+
+    const queueKey = await this.redis.get(keys.userQueue(normalizedUserId));
+    let removed = 0;
+    if (queueKey) {
+      const [bookId, prefType] = [queueKey.slice(0, queueKey.lastIndexOf('_')), queueKey.slice(queueKey.lastIndexOf('_') + 1)];
+      removed = await this.queue.remove({ userId: normalizedUserId, bookId, prefType });
+      await this.redis.del(keys.userQueue(normalizedUserId));
+    } else {
+      await this.queue.dropFromSearching(normalizedUserId);
     }
 
-    // Only an actual matched member of this room may enter the conversation.
-    // This makes the event idempotent and defends against out-of-order,
-    // duplicate, or spoofed enter events: rather than throwing an illegal
-    // transition (e.g. SEARCHING/IDLE -> IN_CONVERSATION), we simply ignore them.
-    if (!this.isRoomMember(normalizedUserId, normalizedRoomId)) {
-      return null;
+    const session = await this.sessions.get(normalizedUserId);
+    if (session?.state === SESSION_STATES.SEARCHING) {
+      await this.sessions.setState(normalizedUserId, SESSION_STATES.IDLE, { prefType: null, bookId: null });
     }
+    return { removed: removed > 0 };
+  }
 
-    const session = this.sessions.get(normalizedUserId);
-    if (session?.state === SESSION_STATES.IN_CONVERSATION) {
-      return session;
-    }
-    if (session?.state !== SESSION_STATES.MATCHED) {
-      return null;
-    }
+  async isRoomMember(userId, roomId) {
+    const normalizedRoomId = normalizeId(roomId);
+    if (!normalizedRoomId) return false;
+    return (await this.redis.sismember(keys.room(normalizedRoomId), normalizeId(userId))) === 1;
+  }
+
+  async enterConversation({ userId, roomId }) {
+    const normalizedUserId = normalizeId(userId);
+    const normalizedRoomId = normalizeId(roomId) || (await this.redis.get(keys.userRoom(normalizedUserId)));
+    if (!normalizedUserId || !normalizedRoomId) return null;
+
+    // Ignore duplicate, out-of-order or spoofed events rather than throwing an
+    // illegal-transition error: room ids are guessable, so membership is the gate.
+    if (!(await this.isRoomMember(normalizedUserId, normalizedRoomId))) return null;
+
+    const session = await this.sessions.get(normalizedUserId);
+    if (session?.state === SESSION_STATES.IN_CONVERSATION) return session;
+    if (session?.state !== SESSION_STATES.MATCHED) return null;
 
     return this.sessions.setState(normalizedUserId, SESSION_STATES.IN_CONVERSATION, { roomId: normalizedRoomId });
   }
 
   async leaveRoom({ userId, roomId, reason = 'left' }) {
     const normalizedUserId = normalizeId(userId);
-    const normalizedRoomId = normalizeId(roomId) || this.userToRoomId.get(normalizedUserId);
-    if (!normalizedUserId || !normalizedRoomId) {
+    const normalizedRoomId = normalizeId(roomId) || (await this.redis.get(keys.userRoom(normalizedUserId)));
+    if (!normalizedUserId || !normalizedRoomId) return { left: false };
+
+    const members = await this.redis.smembers(keys.room(normalizedRoomId));
+    if (members.length === 0) {
+      await this.#resetToIdle(normalizedUserId);
       return { left: false };
     }
 
-    const members = this.roomMembers.get(normalizedRoomId);
-    if (!members) {
-      this.userToRoomId.delete(normalizedUserId);
-      this.sessions.setState(normalizedUserId, SESSION_STATES.IDLE, { roomId: null, partnerUserId: null, prefType: null, bookId: null });
-      return { left: false };
-    }
+    const partnerUserId = members.find((member) => member !== normalizedUserId) || null;
 
-    members.delete(normalizedUserId);
-    this.userToRoomId.delete(normalizedUserId);
-    this.sessions.setState(normalizedUserId, SESSION_STATES.IDLE, { roomId: null, partnerUserId: null, prefType: null, bookId: null });
+    await this.#resetToIdle(normalizedUserId);
+    this.io.in(userChannel(normalizedUserId)).socketsLeave(normalizedRoomId);
 
-    const partnerUserId = [...members][0] || null;
     if (partnerUserId) {
-      this.sessions.setState(partnerUserId, SESSION_STATES.IDLE, { roomId: null, partnerUserId: null, prefType: null, bookId: null });
-      this.userToRoomId.delete(partnerUserId);
-
-      const partnerSocketId = this._getPrimarySocketId(partnerUserId);
-      const partnerSocket = partnerSocketId ? this.io.sockets.sockets.get(partnerSocketId) : null;
-      if (partnerSocket) {
-        partnerSocket.emit('partner_left', {
-          roomId: normalizedRoomId,
-          reason,
-          message: 'The other reader has left the discussion',
-        });
-        partnerSocket.leave(normalizedRoomId);
-      }
+      await this.#resetToIdle(partnerUserId);
+      this.emitToUser(partnerUserId, 'partner_left', {
+        roomId: normalizedRoomId,
+        reason,
+        message: 'The other reader has left the discussion',
+      });
+      this.io.in(userChannel(partnerUserId)).socketsLeave(normalizedRoomId);
     }
 
-    const leaverSocketId = this._getPrimarySocketId(normalizedUserId);
-    const leaverSocket = leaverSocketId ? this.io.sockets.sockets.get(leaverSocketId) : null;
-    if (leaverSocket) {
-      leaverSocket.leave(normalizedRoomId);
-    }
-
-    this.roomMembers.delete(normalizedRoomId);
+    await this.redis.del(keys.room(normalizedRoomId));
     return { left: true };
   }
 
-  // Synchronous, self-contained teardown that drives a user to IDLE: removes any
-  // queue entry, tears down any active room (notifying the partner), and clears
-  // session fields. Because it performs no awaits, callers (notably the locked
-  // join path) run it atomically with no interleaving window.
-  _forceIdle(userId, reason = 'reset') {
-    const normalizedUserId = normalizeId(userId);
-    if (!normalizedUserId) {
-      return;
-    }
-
-    this.leaveMatchmaking({ userId: normalizedUserId });
-
-    const roomId = this.userToRoomId.get(normalizedUserId);
-    if (roomId) {
-      // leaveRoom's body is synchronous; ignore the returned (already-resolved) promise.
-      this.leaveRoom({ userId: normalizedUserId, roomId, reason });
-    }
-
-    this.sessions.setState(normalizedUserId, SESSION_STATES.IDLE, {
-      bookId: null,
-      prefType: null,
-      roomId: null,
-      partnerUserId: null,
+  async #resetToIdle(userId) {
+    await this.redis.del(keys.userRoom(userId));
+    await this.queue.dropFromSearching(userId);
+    await this.sessions.setState(userId, SESSION_STATES.IDLE, {
+      roomId: null, partnerUserId: null, prefType: null, bookId: null,
     });
   }
 
-  // Defence-in-depth against queue/map leaks: drop queue entries whose socket is
-  // gone, delete empty queue keys, and reconcile any orphaned SEARCHING sessions.
-  // Runs on the periodic sweep alongside the session-store TTL sweep.
-  sweepQueues() {
-    let removed = 0;
-    for (const [queueKey, items] of this.queue.entries()) {
-      const live = [];
-      for (const item of items) {
-        if (this.io.sockets.sockets.get(item.socketId)) {
-          live.push(item);
-          continue;
-        }
-        removed += 1;
-        if (this.userToQueueKey.get(item.userId) === queueKey) {
-          this.userToQueueKey.delete(item.userId);
-        }
-        const session = this.sessions.get(item.userId);
-        if (session?.state === SESSION_STATES.SEARCHING) {
-          this.sessions.setState(item.userId, SESSION_STATES.IDLE, {
-            roomId: null,
-            partnerUserId: null,
-            prefType: null,
-            bookId: null,
-          });
-        }
-      }
-
-      if (live.length === 0) {
-        this.queue.delete(queueKey);
-      } else if (live.length !== items.length) {
-        this.queue.set(queueKey, live);
-      }
-    }
-    return removed;
+  async #forceIdle(userId, reason = 'reset') {
+    await this.leaveMatchmaking({ userId });
+    const roomId = await this.redis.get(keys.userRoom(userId));
+    if (roomId) await this.leaveRoom({ userId, roomId, reason });
+    await this.#resetToIdle(userId);
   }
 
   async endSession(userId, { reason = 'ended' } = {}) {
     const normalizedUserId = normalizeId(userId);
-    if (!normalizedUserId) {
-      return { ended: false };
-    }
-
-    this._forceIdle(normalizedUserId, reason);
-
+    if (!normalizedUserId) return { ended: false };
+    await this.#forceIdle(normalizedUserId, reason);
     return { ended: true };
   }
 }

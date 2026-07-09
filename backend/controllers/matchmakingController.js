@@ -76,7 +76,7 @@ export const createMatchmakingController = (sessionManager) => {
           source: normalizedSource,
           source_book_id: normalizedSourceBookId,
         },
-        session: sessionManager.getPublicSession(userId),
+        session: await sessionManager.getPublicSession(userId),
       });
     } catch (error) {
       const status = error.statusCode || 500;
@@ -94,8 +94,8 @@ export const createMatchmakingController = (sessionManager) => {
         return res.status(400).json({ message: 'userId is required.' });
       }
 
-      sessionManager.leaveMatchmaking({ userId });
-      return res.json({ session: sessionManager.getPublicSession(userId) });
+      await sessionManager.leaveMatchmaking({ userId });
+      return res.json({ session: await sessionManager.getPublicSession(userId) });
     } catch (error) {
       return res.status(500).json(buildSafeErrorBody('Failed to leave matchmaking.', error));
     }

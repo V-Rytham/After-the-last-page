@@ -27,8 +27,11 @@ const inferRenderCompanionHost = (hostname, fromSuffix, toSuffix) => {
   return `${hostname.slice(0, -fromSuffix.length)}${toSuffix}`;
 };
 
+const getEnv = () => (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {});
+
 export const getApiBaseUrl = () => {
-  const configured = normalizeConfiguredUrl(import.meta.env.VITE_API_URL, null);
+  const env = getEnv();
+  const configured = normalizeConfiguredUrl(env.VITE_API_URL, null);
   if (configured) {
     return configured;
   }
@@ -38,10 +41,8 @@ export const getApiBaseUrl = () => {
 
   // In local development (including local previews), prefer an explicit backend URL
   // to avoid relying on frontend server proxy wiring.
-  if (import.meta.env.DEV || isLocalHost) {
-    const devBackend = normalizeConfiguredUrl(import.meta.env.VITE_DEV_BACKEND_URL, null)
-      || 'http://127.0.0.1:10000';
-    return `${devBackend.replace(/\/$/, '')}/api`;
+  if (env.DEV || isLocalHost) {
+    return '/api';
   }
 
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -57,12 +58,13 @@ export const getApiBaseUrl = () => {
 };
 
 export const getSocketServerUrl = () => {
-  const configured = normalizeConfiguredUrl(import.meta.env.VITE_SOCKET_URL, null);
+  const env = getEnv();
+  const configured = normalizeConfiguredUrl(env.VITE_SOCKET_URL, null);
   if (configured) {
     return configured;
   }
 
-  if (import.meta.env.DEV && typeof window !== 'undefined' && window.location?.origin) {
+  if (env.DEV && typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin;
   }
 

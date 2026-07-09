@@ -1,20 +1,102 @@
+# After-the-last-page -- Render Blueprint (free tier)
+#
+# Topology: 4 backend replicas behind a custom load balancer, one static
+# frontend, one Key Value (Redis) instance.
+#
+# FREE-TIER NOTE. Render grants 750 free instance hours per workspace per month
+# and spins a free web service down after 15 minutes with no inbound traffic.
+# Only spun-down services stop consuming hours. Two consequences are encoded
+# below and must not be "fixed" without redoing the arithmetic:
+#
+#   1. No service declares `healthCheckPath`. Render polls that path
+#      periodically, which is inbound traffic, which would hold every instance
+#      awake forever (5 x ~730h = ~3650h against a 750h budget).
+#   2. The balancer's own probing is off (HEALTH_CHECK_INTERVAL_MS=0) for the
+#      same reason. It falls back to a passive circuit breaker: a backend leaves
+#      rotation only on a connection error and is retried after a cooldown.
+#
+# Idle backends are therefore cold. The first request through the balancer must
+# outlast a Render spin-up (~1 min), hence PROXY_TIMEOUT_MS=90000.
+#
+# SECRETS. `MONGODB_URI` and `JWT_SECRET` live in a dashboard-created
+# environment group named `alp-shared`, referenced here with `fromGroup`.
+# JWT_SECRET *must* be identical across all four backends: a token minted by one
+# replica is verified by whichever replica serves the next request, and differing
+# secrets surface as "Not authorized, token failed" (JsonWebTokenError: invalid
+# signature). A per-service `generateValue: true` would produce exactly that bug.
+
 services:
-  # Backend API + Socket.IO
+  # ---------------------------------------------------------------- data ----
+  # Socket.IO adapter pub/sub + matchmaking queue, rooms and session state.
+  # Free Key Value is in-memory only: a restart drops queues and rooms. Sessions
+  # re-form on reconnect, so this is survivable, but it is not durable storage.
+  - type: keyvalue
+    name: alp-kv
+    plan: free
+    region: oregon
+    ipAllowList: []          # reachable only from services in this workspace
+    maxmemoryPolicy: allkeys-lru
+
+  # ------------------------------------------------------- load balancer ----
+  # Public entrypoint. Round-robins REST, and pins each Engine.IO session to the
+  # backend that issued its sid (required: Engine.IO sessions are per-process).
   - type: web
-    name: alp-api
+    name: alp-lb
     runtime: node
-    plan: starter
-    rootDir: backend
-    buildCommand: npm ci
-    startCommand: node index.js
-    healthCheckPath: /api/health
+    plan: free
+    region: oregon
+    rootDir: loadbalancer
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: PORT
         value: 10000
-      - key: MONGODB_URI
-        sync: false
-      - key: JWT_SECRET
-        generateValue: true
+      # Public URLs: free-tier services have no private networking.
+      - key: BACKEND_TARGETS
+        value: https://alp-api-1.onrender.com,https://alp-api-2.onrender.com,https://alp-api-3.onrender.com,https://alp-api-4.onrender.com
+      # Guards against the balancer proxying to itself if it ever appears above.
+      - key: SELF_URL
+        value: https://alp-lb.onrender.com
+      # 0 = no active probing; see the free-tier note.
+      - key: HEALTH_CHECK_INTERVAL_MS
+        value: 0
+      # A tripped backend is retried after this long.
+      - key: FAILURE_COOLDOWN_MS
+        value: 30000
+      # Must outlast a cold start, not a healthy request.
+      - key: PROXY_TIMEOUT_MS
+        value: 90000
+      # Engine.IO holds a long-poll for pingInterval (25s) and declares a peer
+      # dead only after pingTimeout (60s). Anything under 85s severs healthy
+      # sockets on a fixed cadence.
+      - key: SOCKET_PROXY_TIMEOUT_MS
+        value: 120000
+
+  # ------------------------------------------------------------ backends ----
+  # Four identical replicas, differing only in `name`. Written out in full rather
+  # than with a YAML anchor: a blueprint that Render's parser cannot expand fails
+  # the entire deploy. Keep these four blocks in sync by hand.
+  - type: web
+    name: alp-api-1
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node index.js
+    envVars:
+      - fromGroup: alp-shared          # MONGODB_URI, JWT_SECRET
+      - key: PORT
+        value: 10000
+      # Render's edge + alp-lb. See index.js: under-counting collapses the
+      # per-IP rate limiter into a single global bucket.
+      - key: TRUST_PROXY_HOPS
+        value: 2
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: alp-kv
+          property: connectionString
       - key: CLIENT_URL
         value: https://alp-web.onrender.com
       - key: BOOKFRIEND_SERVER_URL
@@ -26,32 +108,104 @@ services:
       - key: RECOMMENDATIONS_SERVICE_TIMEOUT_MS
         value: 12000
 
-  # BookFriend Agent (RAG) service
   - type: web
-    name: alp-bookfriend
+    name: alp-api-2
     runtime: node
-    plan: starter
-    rootDir: bookfriend-server
+    plan: free
+    region: oregon
+    rootDir: backend
     buildCommand: npm ci
-    startCommand: node server.js
-    healthCheckPath: /health
+    startCommand: node index.js
     envVars:
+      - fromGroup: alp-shared
       - key: PORT
-        value: 5050
-      - key: MONGODB_URI
-        sync: false
+        value: 10000
+      # Render's edge + alp-lb. See index.js: under-counting collapses the
+      # per-IP rate limiter into a single global bucket.
+      - key: TRUST_PROXY_HOPS
+        value: 2
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: alp-kv
+          property: connectionString
       - key: CLIENT_URL
         value: https://alp-web.onrender.com
-      - key: BACKEND_URL
-        value: https://alp-api.onrender.com
-      - key: BOOKFRIEND_LLM_PROVIDER
-        value: groq
-      - key: BOOKFRIEND_GROQ_MODEL
-        value: llama-3.1-8b-instant
-      - key: GROQ_API_KEY
-        sync: false
+      - key: BOOKFRIEND_SERVER_URL
+        value: https://alp-bookfriend.onrender.com
+      - key: RECOMMENDATIONS_SERVICE_ENABLED
+        value: true
+      - key: RECOMMENDATIONS_SERVICE_URL
+        value: https://new-web-service-m978.onrender.com
+      - key: RECOMMENDATIONS_SERVICE_TIMEOUT_MS
+        value: 12000
 
-  # Frontend (Vite build) as a Render Static Site
+  - type: web
+    name: alp-api-3
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node index.js
+    envVars:
+      - fromGroup: alp-shared
+      - key: PORT
+        value: 10000
+      # Render's edge + alp-lb. See index.js: under-counting collapses the
+      # per-IP rate limiter into a single global bucket.
+      - key: TRUST_PROXY_HOPS
+        value: 2
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: alp-kv
+          property: connectionString
+      - key: CLIENT_URL
+        value: https://alp-web.onrender.com
+      - key: BOOKFRIEND_SERVER_URL
+        value: https://alp-bookfriend.onrender.com
+      - key: RECOMMENDATIONS_SERVICE_ENABLED
+        value: true
+      - key: RECOMMENDATIONS_SERVICE_URL
+        value: https://new-web-service-m978.onrender.com
+      - key: RECOMMENDATIONS_SERVICE_TIMEOUT_MS
+        value: 12000
+
+  - type: web
+    name: alp-api-4
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node index.js
+    envVars:
+      - fromGroup: alp-shared
+      - key: PORT
+        value: 10000
+      # Render's edge + alp-lb. See index.js: under-counting collapses the
+      # per-IP rate limiter into a single global bucket.
+      - key: TRUST_PROXY_HOPS
+        value: 2
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: alp-kv
+          property: connectionString
+      - key: CLIENT_URL
+        value: https://alp-web.onrender.com
+      - key: BOOKFRIEND_SERVER_URL
+        value: https://alp-bookfriend.onrender.com
+      - key: RECOMMENDATIONS_SERVICE_ENABLED
+        value: true
+      - key: RECOMMENDATIONS_SERVICE_URL
+        value: https://new-web-service-m978.onrender.com
+      - key: RECOMMENDATIONS_SERVICE_TIMEOUT_MS
+        value: 12000
+
+  # ------------------------------------------------------------ frontend ----
+  # Static sites do not consume instance hours.
   - type: web
     name: alp-web
     runtime: static
@@ -63,7 +217,11 @@ services:
         source: /*
         destination: /index.html
     envVars:
+      # Both must address the balancer. Left unset, serviceUrls.js infers
+      # `alp-api.onrender.com` from the site hostname and the browser bypasses
+      # the balancer entirely, talking to one backend directly -- which breaks
+      # sticky sessions and cross-instance matchmaking.
       - key: VITE_API_URL
-        sync: false
+        value: https://alp-lb.onrender.com/api
       - key: VITE_SOCKET_URL
-        sync: false
+        value: https://alp-lb.onrender.com

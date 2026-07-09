@@ -1,9 +1,13 @@
+// Must precede every module that reads process.env.
+import './config/env.js';
+
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
 import path from 'path';
 import { connectDB } from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
@@ -13,13 +17,13 @@ import registerSocketEvents from './socket/socketHandler.js';
 import accessRoutes from './routes/accessRoutes.js';
 import { buildSessionRoutes } from './routes/sessionRoutes.js';
 import { buildMatchmakingRoutes } from './routes/matchmakingRoutes.js';
-import { buildMeetRoutes } from './routes/meetRoutes.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { rateLimit } from './middleware/rateLimit.js';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 import { isProd } from './utils/runtime.js';
 import { log } from './utils/logger.js';
 import { RealtimeSessionManager } from './services/realtimeSessionManager.js';
+import { createRedisClients } from './services/realtime/redisClients.js';
 import { requestTracing } from './middleware/requestLogging.js';
 import recommendationsRoutes from './routes/recommendationsRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
@@ -34,10 +38,18 @@ import { getBookfriendConfig } from './src/integrations/bookfriend/config/bookfr
 import { BookfriendHealthMonitor } from './src/integrations/bookfriend/health/BookfriendHealthMonitor.js';
 import { BookfriendGatewayService } from './src/integrations/bookfriend/services/BookfriendGatewayService.js';
 import { requestIdMiddleware } from './middleware/requestIdMiddleware.js';
+import { isOriginAllowed } from './utils/corsOrigins.js';
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', isProd() ? 1 : 0);
+// Number of proxies in front of this process, counted from the socket backwards.
+// In production that is Render's edge *and* our own load balancer, so a request
+// arrives with `x-forwarded-for: <client>, <edge>`. Under-counting makes
+// `req.ip` resolve to a proxy's address, which is identical for every visitor --
+// collapsing the per-IP rate limiter (middleware/rateLimit.js) into one global
+// bucket. Override if the number of hops changes.
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? (isProd() ? 2 : 0));
+app.set('trust proxy', Number.isFinite(trustProxyHops) ? trustProxyHops : 0);
 
 const httpServer = createServer(app);
 
@@ -61,59 +73,52 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-const buildAllowedOrigins = () => (
-  new Set([
-    process.env.CLIENT_URL,
-    process.env.CLIENT_URL_FALLBACK,
-    process.env.DEV_CLIENT_URL,
-  ].filter(Boolean))
-);
-
 const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
-      const allowList = buildAllowedOrigins();
-
-      if (!origin || allowList.has(origin)) {
+      if (isOriginAllowed(origin)) {
         callback(null, true);
         return;
-      }
-
-      try {
-        const parsed = new URL(origin);
-        const hostname = parsed.hostname;
-        const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-        const isPrivateLan = hostname.startsWith('192.168.')
-          || hostname.startsWith('10.')
-          || /^172\\.(1[6-9]|2\\d|3[0-1])\\./.test(hostname);
-
-        if ((isLocalhost || isPrivateLan) && parsed.port === '5173') {
-          callback(null, true);
-          return;
-        }
-      } catch {
-        // Fallthrough to reject.
       }
 
       callback(new Error(`Socket origin not allowed: ${origin}`));
     },
     methods: ['GET', 'POST'],
     credentials: true,
-  }
+  },
+  pingTimeout: 60_000,
+  pingInterval: 25_000,
+  connectTimeout: 45_000,
+  allowEIO3: true,
 });
+
+// Redis is not optional. Engine.IO sessions are pinned to one instance by the
+// load balancer, but matchmaking pairs readers across instances and rooms span
+// them. Without a shared adapter and store, two readers on different instances
+// can never be matched, and broadcasts reach only one process. Failing fast here
+// beats silently degrading to a single-instance-only deployment.
+const redisUrl = String(process.env.REDIS_URL || '').trim();
+if (!redisUrl) {
+  console.error('[SERVER] REDIS_URL is required.');
+  process.exit(1);
+}
+
+let redis;
+try {
+  redis = await createRedisClients(redisUrl);
+} catch (error) {
+  console.error('[SERVER] Failed to connect to Redis:', error?.message || error);
+  process.exit(1);
+}
+
+io.adapter(createAdapter(redis.pub, redis.sub));
+log('[SERVER] Socket.IO Redis adapter enabled');
 
 configurePassport();
 
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowList = buildAllowedOrigins();
-
-    if (!origin) return callback(null, true);
-
-    if (
-      allowList.has(origin) ||
-      origin.endsWith('.onrender.com')
-    ) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
 
@@ -159,8 +164,7 @@ app.use('/api/recommendations', rateLimit({ windowMs: 60_000, max: 60 }));
 app.use('/api/search', rateLimit({ windowMs: 60_000, max: 90 }));
 app.use('/api/agent', rateLimit({ windowMs: 60_000, max: 75 }));
 
-const sessionManager = new RealtimeSessionManager(io);
-// Register Socket Events
+const sessionManager = new RealtimeSessionManager(io, redis.data);
 registerSocketEvents(io, sessionManager);
 
 const { booksModule } = bootstrapFeatureModules();
@@ -190,8 +194,10 @@ app.use('/api', requireDatabase({ status: 503, feature: 'Threads' }), buildBookT
 app.use('/api/agent', agentRoutes);
 app.use('/api/access', accessRoutes);
 app.use('/api/session', requireDatabase({ feature: 'Realtime sessions' }), buildSessionRoutes(sessionManager));
+// '/api/meet' is the current path; '/api/matchmaking' is retained for older clients.
+// Both mount the same router -- they were previously two identical builder modules.
 app.use('/api/matchmaking', requireDatabase({ feature: 'Meet' }), buildMatchmakingRoutes(sessionManager));
-app.use('/api/meet', requireDatabase({ feature: 'Meet' }), buildMeetRoutes(sessionManager));
+app.use('/api/meet', requireDatabase({ feature: 'Meet' }), buildMatchmakingRoutes(sessionManager));
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/reading', readingRoutes);

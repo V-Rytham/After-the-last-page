@@ -19,12 +19,12 @@ export const createSessionController = (sessionManager) => {
       if (prefType) patch.prefType = String(prefType);
       if (roomId) patch.roomId = String(roomId);
 
-      sessionManager.ensureSession(userId, patch);
+      await sessionManager.ensureSession(userId, patch);
       if (state && Object.values(SESSION_STATES).includes(String(state))) {
-        sessionManager.sessions.setState(userId, String(state), patch);
+        await sessionManager.setSessionState(userId, String(state), patch);
       }
 
-      return res.json({ session: sessionManager.getPublicSession(userId) });
+      return res.json({ session: await sessionManager.getPublicSession(userId) });
     } catch (error) {
       return res.status(500).json(buildSafeErrorBody('Failed to start session.', error));
     }
@@ -38,7 +38,7 @@ export const createSessionController = (sessionManager) => {
       }
 
       await sessionManager.endSession(userId, { reason: String(req.body?.reason || 'ended') });
-      return res.json({ session: sessionManager.getPublicSession(userId) });
+      return res.json({ session: await sessionManager.getPublicSession(userId) });
     } catch (error) {
       return res.status(500).json(buildSafeErrorBody('Failed to end session.', error));
     }
@@ -51,7 +51,7 @@ export const createSessionController = (sessionManager) => {
         return res.status(401).json({ message: 'Unauthorized.' });
       }
 
-      return res.json({ session: sessionManager.getPublicSession(userId) });
+      return res.json({ session: await sessionManager.getPublicSession(userId) });
     } catch (error) {
       return res.status(500).json(buildSafeErrorBody('Failed to fetch session status.', error));
     }
