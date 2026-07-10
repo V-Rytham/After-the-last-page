@@ -52,7 +52,8 @@ const fetchJson = async (url, timeoutMs = 12_000) => {
 
 const extractMetadata = async ({ source, sourceBookId }) => {
   if (source === 'gutendex') {
-    const payload = await fetchJson(`https://gutendex.com/books/${encodeURIComponent(sourceBookId)}`);
+    // Trailing slash is load-bearing: gutendex 301s `/books/{id}` to `/books/{id}/`.
+    const payload = await fetchJson(`https://gutendex.com/books/${encodeURIComponent(sourceBookId)}/`);
     return {
       title: toNonEmptyString(payload?.title),
       author: toNonEmptyString(payload?.authors?.[0]?.name),

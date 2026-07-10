@@ -138,6 +138,17 @@ const corsOptions = {
   credentials: true,
 };
 
+// Proves a response was produced by this application rather than by the
+// platform's edge. The balancer trips its circuit breaker on a 502/503/504, on
+// the assumption that only Render's edge emits one -- but this app emits 502 and
+// 504 itself whenever an upstream (gutendex, gutenberg.org) fails. Without a
+// marker to tell the two apart, a book whose upstream is down takes healthy
+// backends out of rotation. Mounted first so it survives every error path.
+app.use((req, res, next) => {
+  res.setHeader('x-alp-upstream', 'api');
+  next();
+});
+
 app.use(cors(corsOptions));
 
 // Express v5 / path-to-regexp no longer supports '*' as a route pattern.

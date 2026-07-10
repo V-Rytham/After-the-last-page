@@ -30,12 +30,33 @@ const fetchWithTimeout = async (url, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) =>
   }
 };
 
+// The upstream status is the only thing that distinguishes "this book does not
+// exist" from "gutendex is refusing us" from "gutendex is down". Collapsing it
+// into a bare 502 leaves an operator with a failing reader and nothing to go on,
+// so record it on the error and in the log before mapping it to a client status.
+const upstreamFailure = async (response, host, message) => {
+  const body = await response.text().then(
+    (text) => text.slice(0, 200),
+    () => '<unreadable>',
+  );
+  console.error('[gutenbergReader] upstream rejected request', {
+    host,
+    url: response.url,
+    status: response.status,
+    body,
+  });
+
+  const error = new Error(message);
+  error.statusCode = response.status === 404 ? 404 : 502;
+  error.upstreamStatus = response.status;
+  return error;
+};
+
+// Trailing slash is load-bearing: gutendex 301s `/books/{id}` to `/books/{id}/`.
 export const fetchGutenbergMetadata = async (gutenbergId, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) => {
-  const response = await fetchWithTimeout(`${GUTENDEX_HOST}/books/${encodeURIComponent(String(gutenbergId))}`, { timeoutMs });
+  const response = await fetchWithTimeout(`${GUTENDEX_HOST}/books/${encodeURIComponent(String(gutenbergId))}/`, { timeoutMs });
   if (!response.ok) {
-    const error = new Error(`Unable to fetch metadata for Gutenberg #${gutenbergId}.`);
-    error.statusCode = response.status === 404 ? 404 : 502;
-    throw error;
+    throw await upstreamFailure(response, GUTENDEX_HOST, `Unable to fetch metadata for Gutenberg #${gutenbergId}.`);
   }
 
   const payload = await response.json();
@@ -51,9 +72,7 @@ export const fetchGutenbergText = async (gutenbergId, { timeoutMs = DEFAULT_TIME
   );
 
   if (!response.ok) {
-    const error = new Error(`Unable to fetch Gutenberg text for #${gutenbergId}.`);
-    error.statusCode = response.status === 404 ? 404 : 502;
-    throw error;
+    throw await upstreamFailure(response, GUTENBERG_HOST, `Unable to fetch Gutenberg text for #${gutenbergId}.`);
   }
 
   return response.text();

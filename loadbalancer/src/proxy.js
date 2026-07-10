@@ -20,10 +20,21 @@ const CONNECTION_ERRORS = new Set([
 // session no backend can serve.
 const UNKNOWN_SESSION = JSON.stringify({ code: 1, message: 'Session ID unknown' });
 
-// A gateway status means the request never reached the backend's application:
-// the platform's own edge answered for it. Distinct from 500, which the app
-// itself produced and which says nothing about whether it is serving.
+// A gateway status *may* mean the request never reached the backend's
+// application: the platform's own edge answered for it. But the app emits these
+// too -- 502 when an upstream it proxies (gutendex, gutenberg.org) fails, 504
+// when one times out -- and those say nothing about whether the backend is
+// serving. Only the edge-generated ones are a health signal.
 const GATEWAY_ERRORS = new Set([502, 503, 504]);
+
+// Set by the backend on every response it produces (see backend/index.js). The
+// edge answers before any application middleware runs, so its responses carry
+// no marker. A gateway status without one is the edge reporting it has no
+// instance to hand the request to; with one, the app is alive and merely
+// reporting that something *it* depends on is not.
+const UPSTREAM_MARKER = 'x-alp-upstream';
+
+const isEdgeGenerated = (proxyRes) => !proxyRes.headers[UPSTREAM_MARKER];
 
 // An Engine.IO open packet is ~120 bytes. Anything past this is not a handshake,
 // and buffering it would grow without bound on a long-poll.
@@ -146,16 +157,20 @@ export const forwardRequest = (req, res, ctx) => {
   const proxyReq = clientFor(options.protocol).request(options, (proxyRes) => {
     const status = proxyRes.statusCode || 502;
 
-    // A gateway status is the platform's edge reporting that it has no instance
-    // to hand the request to -- a suspended or undeployed backend answers this
-    // way instead of refusing the connection, so it looks nothing like the
-    // ECONNREFUSED the breaker was written to catch. Treating it as a success
-    // would leave a backend that cannot serve anything in rotation forever,
-    // failing one request in `pool.size` indefinitely.
-    if (GATEWAY_ERRORS.has(status)) pool.markDown(route.url, `HTTP ${status}`);
-    // Any other response proves the backend is reachable, which is the only
+    // An edge-generated gateway status is the platform reporting that it has no
+    // instance to hand the request to -- a suspended or undeployed backend
+    // answers this way instead of refusing the connection, so it looks nothing
+    // like the ECONNREFUSED the breaker was written to catch. Treating it as a
+    // success would leave a backend that cannot serve anything in rotation
+    // forever, failing one request in `pool.size` indefinitely.
+    if (GATEWAY_ERRORS.has(status) && isEdgeGenerated(proxyRes)) {
+      pool.markDown(route.url, `HTTP ${status}`);
+    // Any other response -- including a 502 the app produced because *its* own
+    // upstream failed -- proves the backend is reachable, which is the only
     // recovery signal available when active probing is disabled.
-    else pool.markUp(route.url);
+    } else {
+      pool.markUp(route.url);
+    }
 
     // That edge response is generated before the backend's CORS middleware ever
     // runs, so it carries no Access-Control-Allow-Origin. Forwarded verbatim it

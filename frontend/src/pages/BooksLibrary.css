@@ -110,6 +110,36 @@ html[data-theme='sepia'] .editorial-theme {
   font-size: 0.9rem;
 }
 
+/* First-run state: an invitation, not a status line. */
+.desk-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  background: var(--desk-card-bg);
+  border: 1px solid var(--desk-border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.desk-empty__title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--desk-text);
+}
+
+.desk-empty__copy {
+  margin: 0;
+  max-width: 44ch;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  line-height: var(--leading-ui);
+  color: var(--desk-muted);
+}
+
+.desk-empty__cta {
+  margin-top: 4px;
+}
+
 .desk-section__heading p,
 .current-reading-card p,
 .current-reading-card span,
@@ -734,10 +764,28 @@ html[data-theme='dark'] .current-reading-card__resume {
     min-height: 0;
   }
 
+  /* Mobile: a compact, squarer capsule that sits on the type baseline rather
+     than a shrunk-down desktop pill. Optical padding is tightened horizontally
+     more than vertically, so the label keeps its breathing room while the
+     button stops dominating the section it belongs to. */
   .desk-btn {
-    min-height: 2.35rem;
-    padding: 0.45rem 0.85rem;
-    font-size: 0.78rem;
+    min-height: 2.5rem;
+    padding: 0.5rem 1.05rem;
+    border-radius: 0.85rem;
+    font-size: 0.82rem;
+    letter-spacing: 0.01em;
+  }
+
+  /* A lone call-to-action in an empty state reads better full-bleed than as a
+     small pill stranded in whitespace. */
+  .desk-empty {
+    justify-items: stretch;
+    padding: 18px 16px;
+  }
+
+  .desk-empty__cta {
+    width: 100%;
+    justify-content: center;
   }
 }
 

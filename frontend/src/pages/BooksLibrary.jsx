@@ -354,8 +354,20 @@ const BooksLibrary = ({ currentUser }) => {
                 <BookCardEditorial key={getBookKey(book)} book={book} session={session} />
               ))}
             </div>
+          ) : recentActivity.length > 0 ? (
+            // Activity exists; the search simply excluded it. Saying "start your
+            // reading journey" here would be plainly wrong.
+            <p className="desk-empty-copy">No recent activity matches your search.</p>
           ) : (
-            <p className="desk-empty-copy">No recent activity for this filter.</p>
+            <div className="desk-empty desk-empty--activity">
+              <p className="desk-empty__title font-serif">Your reading journey starts here</p>
+              <p className="desk-empty__copy">
+                Pick your first book and we&rsquo;ll keep track of where you left off.
+              </p>
+              <a className="desk-btn desk-empty__cta" href="/library">
+                Find a book
+              </a>
+            </div>
           )}
         </section>
 

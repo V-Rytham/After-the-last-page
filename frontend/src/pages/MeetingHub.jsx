@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, Video, MessageSquare, Mic, User, Send, Bot, LogOut } from 'lucide-react';
+import { ArrowRight, Video, VideoOff, MessageSquare, Mic, MicOff, PhoneOff, User, Send, Bot, LogOut } from 'lucide-react';
 import { useSocketConnection } from '../context/SocketContext';
 import api from '../utils/api';
 import { getOrCreateIdentity } from '../utils/identity';
@@ -10,6 +10,24 @@ import bookfriendAvatar from '../assets/bookfriend-avatar.jpg';
 import './MeetingHub.css';
 
 const BOOK_READ_TIMEOUT_MS = 120000;
+
+/** Releases the capture devices. Nothing else clears the browser's cam/mic indicator. */
+const stopStream = (stream) => {
+  if (!stream) return;
+  stream.getTracks().forEach((track) => {
+    try { track.stop(); } catch { /* already ended */ }
+  });
+};
+
+const closePeer = (peer) => {
+  if (!peer) return;
+  // Drop the handlers first: a closing connection still fires state changes, and
+  // one of ours calls back into teardown.
+  peer.ontrack = null;
+  peer.onicecandidate = null;
+  peer.onconnectionstatechange = null;
+  try { peer.close(); } catch { /* already closed */ }
+};
 
 const MeetingHub = () => {
   const { bookId } = useParams();
@@ -72,8 +90,21 @@ const MeetingHub = () => {
   const remoteAudioRef = useRef(null);
   const roomIdRef = useRef(null);
   const startCallRef = useRef(null);
+  const cleanupMediaRef = useRef(null);
+  // Bumped by every teardown. `startCall` compares the value it captured before
+  // awaiting against the current one to detect that it was torn down mid-await.
+  const mediaGenerationRef = useRef(0);
+  // `startCall` is reachable from both the "Start call" button and the incoming
+  // -offer handler; two concurrent runs would each acquire a stream and the
+  // second would overwrite the first's ref, orphaning a live capture.
+  const startingCallRef = useRef(false);
   const [mediaStatus, setMediaStatus] = useState('idle');
   const [mediaError, setMediaError] = useState('');
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [cameraEnabled, setCameraEnabled] = useState(true);
+  // Drives the "waiting for the other reader" placeholder: true once the peer's
+  // first track actually arrives, false again when the call is torn down.
+  const [remoteJoined, setRemoteJoined] = useState(false);
 
   const [chatInput, setChatInput] = useState('');
   const [prefType, setPrefType] = useState(initialPrefType);
@@ -198,24 +229,9 @@ const MeetingHub = () => {
     };
 
     const onPartnerLeft = ({ message } = {}) => {
-      if (peerRef.current) {
-        try { peerRef.current.close(); } catch { /* ignore */ }
-        peerRef.current = null;
-      }
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-      }
-      if (remoteStreamRef.current) {
-        remoteStreamRef.current.getTracks().forEach((track) => track.stop());
-        remoteStreamRef.current = null;
-      }
-      if (localVideoRef.current) localVideoRef.current.srcObject = null;
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
-      pendingOfferRef.current = null;
-      setMediaStatus('idle');
-      setMediaError('');
+      // Single teardown path: a second hand-rolled copy of this is how one of
+      // them ends up missing a track.stop() after a later edit.
+      cleanupMediaRef.current?.();
       setMatchNotice(String(message || 'The other reader has left the chat.'));
       setRoomId(null);
       setPartnerDisplayName('Reader');
@@ -330,6 +346,11 @@ const MeetingHub = () => {
 
     cleanupInFlightRef.current = true;
 
+    // Release the devices before the awaits below, not after. Leaving this to
+    // the caller kept the camera live for the duration of two HTTP round-trips,
+    // so the recording indicator lingered after the user had visibly left.
+    cleanupMediaRef.current?.();
+
     try {
       if (phase === 'searching') {
         await api.post('/matchmaking/leave').catch(() => {});
@@ -373,6 +394,11 @@ const MeetingHub = () => {
     }
 
     const handleBeforeUnload = (event) => {
+      // A refresh that the browser then blocks on (or a slow unload) otherwise
+      // leaves the capture running while the old page is still alive.
+      stopStream(localStreamRef.current);
+      closePeer(peerRef.current);
+
       try {
         const identity = getOrCreateIdentity();
         if (identity?.userId && navigator.sendBeacon) {
@@ -411,26 +437,37 @@ const MeetingHub = () => {
   }, [endSession, sessionIsSensitive]);
 
   const cleanupMedia = useCallback(() => {
+    // Invalidate any getUserMedia still in flight. A stream that resolves after
+    // this point belongs to a call the user has already left, and `startCall`
+    // stops it rather than adopting it -- otherwise the camera light stays on
+    // for a component that no longer exists.
+    mediaGenerationRef.current += 1;
+
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
 
-    if (peerRef.current) {
-      try { peerRef.current.close(); } catch { /* ignore */ }
-      peerRef.current = null;
-    }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-    }
-    if (remoteStreamRef.current) {
-      remoteStreamRef.current.getTracks().forEach((track) => track.stop());
-      remoteStreamRef.current = null;
-    }
+    closePeer(peerRef.current);
+    peerRef.current = null;
+
+    // Closing the peer detaches the senders but never stops the capture: only
+    // track.stop() releases the device and clears the browser's recording
+    // indicator.
+    stopStream(localStreamRef.current);
+    localStreamRef.current = null;
+    stopStream(remoteStreamRef.current);
+    remoteStreamRef.current = null;
+
     pendingOfferRef.current = null;
+    startingCallRef.current = false;
+    setMicEnabled(true);
+    setCameraEnabled(true);
+    setRemoteJoined(false);
     setMediaStatus('idle');
     setMediaError('');
   }, []);
+
+  cleanupMediaRef.current = cleanupMedia;
 
   const returnToPreferences = useCallback(async (reason = 'back') => {
     await endSession(reason);
@@ -441,32 +478,71 @@ const MeetingHub = () => {
     setPhase('preferences');
   }, [cleanupMedia, endSession]);
 
-  useEffect(() => () => {
-    cleanupMedia();
-  }, [cleanupMedia]);
+  const toggleMic = useCallback(() => {
+    const tracks = localStreamRef.current?.getAudioTracks() || [];
+    if (!tracks.length) return;
+    // `enabled = false` mutes without releasing the device, so unmuting does not
+    // re-prompt for permission. Only leaving the call stops the track.
+    const next = !tracks[0].enabled;
+    tracks.forEach((track) => { track.enabled = next; });
+    setMicEnabled(next);
+  }, []);
+
+  const toggleCamera = useCallback(() => {
+    const tracks = localStreamRef.current?.getVideoTracks() || [];
+    if (!tracks.length) return;
+    const next = !tracks[0].enabled;
+    tracks.forEach((track) => { track.enabled = next; });
+    setCameraEnabled(next);
+  }, []);
 
   const startCall = useCallback(async () => {
     if (prefType === 'text') return;
+    // Reachable from the button and from the incoming-offer handler.
+    if (startingCallRef.current || localStreamRef.current) return;
+    startingCallRef.current = true;
+
+    const generation = mediaGenerationRef.current;
+    // True once teardown has run since this call began -- the component may be
+    // unmounted by now, so nothing may be stored and nothing may be rendered.
+    const superseded = () => generation !== mediaGenerationRef.current;
+
+    let stream = null;
+    let pc = null;
+
     try {
       setMediaStatus('requesting');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: prefType === 'video' });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: prefType === 'video' });
+
+      // The user can leave while the permission prompt is open. The stream is
+      // still handed to us when they do, and we own it.
+      if (superseded()) return;
+
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+
+      pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
       peerRef.current = pc;
       remoteStreamRef.current = new MediaStream();
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStreamRef.current;
       if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStreamRef.current;
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-      pc.ontrack = (event) => event.streams[0].getTracks().forEach((track) => remoteStreamRef.current?.addTrack(track));
+      pc.ontrack = (event) => {
+        event.streams[0].getTracks().forEach((track) => remoteStreamRef.current?.addTrack(track));
+        setRemoteJoined(true);
+      };
       pc.onicecandidate = (event) => {
         if (event.candidate) socketRef.current?.emit('webrtc_ice_candidate', { roomId: roomIdRef.current, candidate: event.candidate });
       };
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'connected') {
           setMediaStatus('connected');
-        } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
-          cleanupMedia();
+        } else if (pc.connectionState === 'disconnected') {
+          // ICE can recover from this on its own; tearing the call down here
+          // makes a momentary network blip unrecoverable.
+          setMediaStatus('reconnecting');
+        } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+          cleanupMediaRef.current?.();
           setMediaStatus('failed');
         }
       };
@@ -475,6 +551,7 @@ const MeetingHub = () => {
         await pc.setRemoteDescription(pendingOfferRef.current);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+        if (superseded()) return;
         socketRef.current?.emit('webrtc_answer', { roomId: roomIdRef.current, answer: pc.localDescription });
         pendingOfferRef.current = null;
         setMediaStatus('connecting');
@@ -484,14 +561,28 @@ const MeetingHub = () => {
       if (matchRole === 'initiator') {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+        if (superseded()) return;
         socketRef.current?.emit('webrtc_offer', { roomId: roomIdRef.current, offer: pc.localDescription });
       }
       setMediaStatus('ready');
     } catch (error) {
-      setMediaError(error?.message || 'Unable to access camera or microphone.');
-      setMediaStatus('failed');
+      // Negotiation can throw *after* the devices were acquired. Without this the
+      // capture survives a failed call with nothing left holding a reference.
+      if (!superseded()) {
+        cleanupMediaRef.current?.();
+        setMediaError(error?.message || 'Unable to access camera or microphone.');
+        setMediaStatus('failed');
+      }
+    } finally {
+      // Whatever we built belongs to a call that no longer exists: release it
+      // here, because teardown ran before these refs were ever assigned.
+      if (superseded()) {
+        stopStream(stream);
+        closePeer(pc);
+      }
+      startingCallRef.current = false;
     }
-  }, [cleanupMedia, matchRole, prefType]);
+  }, [matchRole, prefType]);
 
   startCallRef.current = startCall;
 
@@ -680,7 +771,18 @@ const MeetingHub = () => {
     }
   };
 
-  const mediaConnected = mediaStatus === 'ready' || mediaStatus === 'connecting' || mediaStatus === 'connected';
+  // 'reconnecting' still holds live devices and a peer -- offering "Start call"
+  // again there would acquire a second stream on top of the first.
+  const mediaConnected = mediaStatus === 'ready'
+    || mediaStatus === 'connecting'
+    || mediaStatus === 'connected'
+    || mediaStatus === 'reconnecting';
+
+  const requestLeave = useCallback(() => {
+    setLeavePromptBody('You will disconnect from this reader.');
+    pendingLeaveActionRef.current = () => returnToPreferences('leave-reader');
+    setLeavePromptOpen(true);
+  }, [returnToPreferences]);
 
   const getMessageTimeLabel = (timestamp) => {
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp || Date.now());
@@ -884,39 +986,105 @@ const MeetingHub = () => {
               </div>
 
               <div className="room-actions">
-                <button
-                  type="button"
-                  className="btn-leave sm"
-                  onClick={() => {
-                    setLeavePromptBody('You will disconnect from this reader.');
-                    pendingLeaveActionRef.current = () => {
-                      returnToPreferences('leave-reader');
-                    };
-                    setLeavePromptOpen(true);
-                  }}
-                >
+                <button type="button" className="btn-leave sm" onClick={requestLeave}>
                   <LogOut size={15} aria-hidden="true" />
                   Leave
                 </button>
               </div>
             </header>
             {prefType !== 'text' && (
-              <div className="media-stage" aria-label="Call area">
-                {prefType === 'video' && (
-                  <div className="video-grid">
-                    <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" />
-                    <video ref={localVideoRef} autoPlay muted playsInline className="local-video" />
-                  </div>
-                )}
-                {prefType === 'voice' && <audio ref={remoteAudioRef} autoPlay />}
+              <div className={`media-stage media-stage--${prefType}`} aria-label="Call area">
+                <div className="call-frame">
+                  {prefType === 'video' ? (
+                    <div className="video-grid" data-remote={remoteJoined ? 'joined' : 'waiting'}>
+                      <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" />
+                      {!remoteJoined && (
+                        <div className="video-placeholder" role="status">
+                          <div className="video-placeholder__avatar" aria-hidden="true"><User size={22} /></div>
+                          <p className="video-placeholder__copy">
+                            {mediaConnected
+                              ? `Waiting for ${partnerDisplayName || 'the other reader'} to turn on their camera…`
+                              : 'Start the call when you are ready.'}
+                          </p>
+                        </div>
+                      )}
+                      {mediaConnected && (
+                        <div className={`local-video-wrap${cameraEnabled ? '' : ' local-video-wrap--off'}`}>
+                          <video ref={localVideoRef} autoPlay muted playsInline className="local-video" />
+                          {!cameraEnabled && (
+                            <span className="local-video__off" aria-hidden="true"><VideoOff size={16} /></span>
+                          )}
+                          <span className="local-video__tag">You</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="voice-stage" data-remote={remoteJoined ? 'joined' : 'waiting'}>
+                      <div className={`voice-orb${mediaStatus === 'connected' ? ' voice-orb--live' : ''}`} aria-hidden="true">
+                        <User size={26} />
+                      </div>
+                      <p className="voice-stage__name font-serif">{partnerDisplayName || 'Reader'}</p>
+                      <audio ref={remoteAudioRef} autoPlay />
+                    </div>
+                  )}
 
-                {!mediaConnected && (
-                  <div className="media-actions">
-                    <button className="btn-primary sm" onClick={startCall} type="button">
-                      Start call
+                  {mediaConnected && mediaStatus !== 'connected' && (
+                    <span className="call-status-pill" role="status">
+                      {mediaStatus === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="call-controls" role="group" aria-label="Call controls">
+                  {!mediaConnected ? (
+                    <button
+                      className="call-btn call-btn--start"
+                      onClick={startCall}
+                      type="button"
+                      disabled={mediaStatus === 'requesting'}
+                    >
+                      {prefType === 'video' ? <Video size={16} aria-hidden="true" /> : <Mic size={16} aria-hidden="true" />}
+                      {mediaStatus === 'requesting' ? 'Requesting access…' : 'Start call'}
                     </button>
-                  </div>
-                )}
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className={`call-btn call-btn--toggle${micEnabled ? '' : ' is-off'}`}
+                        onClick={toggleMic}
+                        aria-pressed={!micEnabled}
+                        aria-label={micEnabled ? 'Mute microphone' : 'Unmute microphone'}
+                        title={micEnabled ? 'Mute' : 'Unmute'}
+                      >
+                        {micEnabled ? <Mic size={18} aria-hidden="true" /> : <MicOff size={18} aria-hidden="true" />}
+                      </button>
+
+                      {prefType === 'video' && (
+                        <button
+                          type="button"
+                          className={`call-btn call-btn--toggle${cameraEnabled ? '' : ' is-off'}`}
+                          onClick={toggleCamera}
+                          aria-pressed={!cameraEnabled}
+                          aria-label={cameraEnabled ? 'Turn camera off' : 'Turn camera on'}
+                          title={cameraEnabled ? 'Camera off' : 'Camera on'}
+                        >
+                          {cameraEnabled ? <Video size={18} aria-hidden="true" /> : <VideoOff size={18} aria-hidden="true" />}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className="call-btn call-btn--end"
+                        onClick={requestLeave}
+                        aria-label="End call"
+                        title="End call"
+                      >
+                        <PhoneOff size={18} aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
+                </div>
+
                 {mediaError && <p className="text-error text-xs media-error">{mediaError}</p>}
               </div>
             )}

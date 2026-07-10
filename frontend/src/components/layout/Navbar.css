@@ -338,7 +338,18 @@
 }
 
 @media (max-width: 640px) {
-  .navbar-title { font-size: 0.88rem; }
+  /* ~30% narrower than the full-bleed mobile capsule, still centred by the
+     `left:50% / translateX(-50%)` on `.navbar`. The floor keeps the brand and
+     the menu trigger from colliding on the narrowest handsets, where 70% of the
+     viewport is not enough to seat both. */
+  .navbar {
+    width: max(15rem, calc((100% - 1rem) * 0.7));
+  }
+
+  .navbar-title {
+    font-size: 0.88rem;
+    max-width: 8.5rem;
+  }
   .mobile-menu-trigger,
   .mobile-menu-avatar { width: 1.95rem; height: 1.95rem; }
   .drawer-brand { font-size: 1.02rem; }
@@ -366,7 +377,7 @@
 @media (max-width: 480px) {
   .navbar {
     top: 6px;
-    width: calc(100% - 0.7rem);
+    width: max(15rem, calc((100% - 0.7rem) * 0.7));
     height: 50px;
     padding: 0 0.58rem;
     border-radius: 12px;
@@ -374,7 +385,9 @@
   }
 
   .navbar-title {
-    max-width: 12.5rem;
+    /* Must stay under the narrowed capsule's inner width, or the brand pushes
+       the menu trigger past the rounded edge. */
+    max-width: 7.5rem;
     font-size: 0.8rem;
     white-space: nowrap;
     overflow: hidden;
