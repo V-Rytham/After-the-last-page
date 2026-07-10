@@ -25,9 +25,13 @@ const UNKNOWN_SESSION = JSON.stringify({ code: 1, message: 'Session ID unknown' 
 // itself produced and which says nothing about whether it is serving.
 const GATEWAY_ERRORS = new Set([502, 503, 504]);
 
+// An Engine.IO open packet is ~120 bytes. Anything past this is not a handshake,
+// and buffering it would grow without bound on a long-poll.
+const HANDSHAKE_SCAN_LIMIT = 2048;
+
 const isSocketRequest = (url) => url.startsWith(config.socketPathPrefix);
 
-const buildUpstreamOptions = (req, targetUrl, timeoutMs) => {
+const buildUpstreamOptions = (req, targetUrl, timeoutMs, { readableBody = false } = {}) => {
   const upstream = new URL(req.url, targetUrl);
   const forwardedFor = req.headers['x-forwarded-for'];
   const clientIp = req.socket.remoteAddress || '';
@@ -35,6 +39,15 @@ const buildUpstreamOptions = (req, targetUrl, timeoutMs) => {
   const headers = {
     ...req.headers,
     host: upstream.host,
+    // The balancer reads the handshake body to learn the sid, so that one
+    // response must not be compressed. Client headers are forwarded verbatim,
+    // and both browsers ("gzip, deflate, br") and Render's Cloudflare edge
+    // ("gzip", added even when the client asked for nothing) request encoding
+    // the regex cannot match -- the sid is never learned and every follow-up
+    // request 400s. Overriding costs nothing: the handshake is ~120 bytes,
+    // below any compression threshold, and serving identity to a client that
+    // offered gzip is always legal.
+    ...(readableBody ? { 'accept-encoding': 'identity' } : {}),
     // Append, never overwrite: preserves the chain when another proxy (Render's
     // edge) already added a hop.
     'x-forwarded-for': forwardedFor ? `${forwardedFor}, ${clientIp}` : clientIp,
@@ -123,8 +136,13 @@ export const forwardRequest = (req, res, ctx) => {
     return;
   }
 
+  // A socket request that names no session is the handshake: the response body
+  // carries the sid this backend just created, and is the only body the balancer
+  // needs to read.
+  const isHandshake = socketTraffic && !route.sid;
+
   const timeoutMs = socketTraffic ? config.socketTimeoutMs : config.requestTimeoutMs;
-  const options = buildUpstreamOptions(req, route.url, timeoutMs);
+  const options = buildUpstreamOptions(req, route.url, timeoutMs, { readableBody: isHandshake });
   const proxyReq = clientFor(options.protocol).request(options, (proxyRes) => {
     const status = proxyRes.statusCode || 502;
 
@@ -150,17 +168,31 @@ export const forwardRequest = (req, res, ctx) => {
     }
 
     // Learn the sid from a handshake so its follow-up requests can be pinned.
-    const isHandshake = socketTraffic && !route.sid && proxyRes.statusCode === 200;
-    if (isHandshake) {
-      let captured = false;
+    if (isHandshake && status === 200) {
+      // Buffer across chunks rather than testing each one: the open packet is
+      // small enough to arrive whole today, but a sid split over a chunk
+      // boundary would silently unpin the session.
+      let scanned = '';
+      let captured = null;
       proxyRes.on('data', (chunk) => {
-        if (captured) return;
-        const sid = StickySessions.sidFromHandshake(chunk.toString('utf8'));
-        if (sid) {
-          captured = true;
-          sticky.set(sid, route.url);
-          logger.info('session pinned', { sid, backend: route.url });
+        if (captured || scanned.length > HANDSHAKE_SCAN_LIMIT) return;
+        scanned += chunk.toString('utf8');
+        captured = StickySessions.sidFromHandshake(scanned);
+        if (captured) {
+          scanned = '';
+          sticky.set(captured, route.url);
+          logger.info('session pinned', { sid: captured, backend: route.url });
         }
+      });
+      // Affinity is the whole reason this balancer exists in front of Engine.IO.
+      // Losing it degrades silently -- the client just reconnects forever -- so
+      // it must be loud in the log rather than inferred from a 400 storm.
+      proxyRes.on('end', () => {
+        if (captured) return;
+        logger.error('handshake carried no readable sid; session cannot be pinned', {
+          backend: route.url,
+          contentEncoding: proxyRes.headers['content-encoding'] || 'identity',
+        });
       });
     }
 
