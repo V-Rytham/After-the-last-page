@@ -57,6 +57,13 @@ services:
       # Guards against the balancer proxying to itself if it ever appears above.
       - key: SELF_URL
         value: https://alp-lb.onrender.com
+      # The balancer answers some requests itself (unknown session, no healthy
+      # backend, bad gateway). Those never reach a backend, so nothing else adds
+      # CORS headers and the browser blocks them -- including the 400 that tells
+      # an Engine.IO client to re-handshake, which is why it must match the
+      # backends' CLIENT_URL exactly.
+      - key: CLIENT_URL
+        value: https://alp-web.onrender.com
       # 0 = no active probing; see the free-tier note.
       - key: HEALTH_CHECK_INTERVAL_MS
         value: 0

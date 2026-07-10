@@ -3,6 +3,7 @@ import https from 'node:https';
 import { URL } from 'node:url';
 
 import { config } from './config.js';
+import { corsHeaders } from './cors.js';
 import { logger } from './logger.js';
 import { StickySessions } from './stickySessions.js';
 
@@ -18,6 +19,11 @@ const CONNECTION_ERRORS = new Set([
 // the balancer makes the client re-handshake immediately instead of retrying a
 // session no backend can serve.
 const UNKNOWN_SESSION = JSON.stringify({ code: 1, message: 'Session ID unknown' });
+
+// A gateway status means the request never reached the backend's application:
+// the platform's own edge answered for it. Distinct from 500, which the app
+// itself produced and which says nothing about whether it is serving.
+const GATEWAY_ERRORS = new Set([502, 503, 504]);
 
 const isSocketRequest = (url) => url.startsWith(config.socketPathPrefix);
 
@@ -72,33 +78,76 @@ const resolveTarget = (req, { pool, sticky }) => {
   return { url: pinned, sid };
 };
 
-const rejectUnknownSession = (res) => {
-  res.writeHead(400, { 'content-type': 'application/json' });
-  res.end(UNKNOWN_SESSION);
+/** Errors the balancer originates must carry CORS, or the client cannot read them. */
+const respond = (req, res, status, body) => {
+  res.writeHead(status, { 'content-type': 'application/json', ...corsHeaders(req) });
+  res.end(body);
+};
+
+// A preflight names no session -- it asks whether the real request is permitted.
+// Routing it through sticky affinity would reject it as an unknown sid and take
+// the real request down with it.
+const answerPreflight = (req, res) => {
+  const headers = corsHeaders(req);
+  if (!headers['access-control-allow-origin']) {
+    res.writeHead(403).end();
+    return;
+  }
+  res.writeHead(204, {
+    ...headers,
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': req.headers['access-control-request-headers'] || 'content-type,authorization',
+    'access-control-max-age': '86400',
+  });
+  res.end();
 };
 
 export const forwardRequest = (req, res, ctx) => {
   const { pool, sticky } = ctx;
   const socketTraffic = isSocketRequest(req.url);
+
+  if (socketTraffic && req.method === 'OPTIONS') {
+    answerPreflight(req, res);
+    return;
+  }
+
   const route = resolveTarget(req, ctx);
 
   if (route.error === 'unknown_session') {
     logger.warn('unknown session, forcing re-handshake', { sid: route.sid });
-    rejectUnknownSession(res);
+    respond(req, res, 400, UNKNOWN_SESSION);
     return;
   }
   if (route.error) {
-    res.writeHead(503, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ error: 'no_healthy_backends' }));
+    respond(req, res, 503, JSON.stringify({ error: 'no_healthy_backends' }));
     return;
   }
 
   const timeoutMs = socketTraffic ? config.socketTimeoutMs : config.requestTimeoutMs;
   const options = buildUpstreamOptions(req, route.url, timeoutMs);
   const proxyReq = clientFor(options.protocol).request(options, (proxyRes) => {
-    // A response of any status proves the backend is reachable, which is the only
+    const status = proxyRes.statusCode || 502;
+
+    // A gateway status is the platform's edge reporting that it has no instance
+    // to hand the request to -- a suspended or undeployed backend answers this
+    // way instead of refusing the connection, so it looks nothing like the
+    // ECONNREFUSED the breaker was written to catch. Treating it as a success
+    // would leave a backend that cannot serve anything in rotation forever,
+    // failing one request in `pool.size` indefinitely.
+    if (GATEWAY_ERRORS.has(status)) pool.markDown(route.url, `HTTP ${status}`);
+    // Any other response proves the backend is reachable, which is the only
     // recovery signal available when active probing is disabled.
-    pool.markUp(route.url);
+    else pool.markUp(route.url);
+
+    // That edge response is generated before the backend's CORS middleware ever
+    // runs, so it carries no Access-Control-Allow-Origin. Forwarded verbatim it
+    // reaches the browser as an opaque CORS failure rather than as a 502, and an
+    // Engine.IO client that cannot read the status cannot fall back. Supply the
+    // headers the backend would have, without ever overwriting ones it did send.
+    const headers = { ...proxyRes.headers };
+    if (status >= 500 && !headers['access-control-allow-origin']) {
+      Object.assign(headers, corsHeaders(req));
+    }
 
     // Learn the sid from a handshake so its follow-up requests can be pinned.
     const isHandshake = socketTraffic && !route.sid && proxyRes.statusCode === 200;
@@ -115,7 +164,7 @@ export const forwardRequest = (req, res, ctx) => {
       });
     }
 
-    res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+    res.writeHead(status, headers);
     proxyRes.pipe(res);
   });
 
@@ -127,8 +176,13 @@ export const forwardRequest = (req, res, ctx) => {
   proxyReq.on('error', (error) => {
     if (CONNECTION_ERRORS.has(error.code)) pool.markDown(route.url, error.code);
     logger.error('upstream error', { backend: route.url, path: options.path, reason: error.message });
-    if (!res.headersSent) res.writeHead(502, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ error: 'upstream_unavailable' }));
+    // Once the backend's headers are out, its body is half-written; appending a
+    // JSON error would corrupt it. Sever instead, so the client sees a failure.
+    if (res.headersSent) {
+      res.destroy();
+      return;
+    }
+    respond(req, res, 502, JSON.stringify({ error: 'upstream_unavailable' }));
   });
 
   req.pipe(proxyReq);

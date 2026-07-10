@@ -4,6 +4,7 @@ import 'dotenv/config';
 import http from 'node:http';
 
 import { config } from './src/config.js';
+import { corsHeaders } from './src/cors.js';
 import { logger } from './src/logger.js';
 import { BackendPool } from './src/backendPool.js';
 import { StickySessions } from './src/stickySessions.js';
@@ -21,7 +22,7 @@ const ctx = { pool, sticky };
 const server = http.createServer((req, res) => {
   if (req.url === '/healthz') {
     const healthy = pool.healthyCount;
-    res.writeHead(healthy > 0 ? 200 : 503, { 'content-type': 'application/json' });
+    res.writeHead(healthy > 0 ? 200 : 503, { 'content-type': 'application/json', ...corsHeaders(req) });
     res.end(JSON.stringify({ ok: healthy > 0, healthy, total: pool.size, pinnedSessions: sticky.size }));
     return;
   }

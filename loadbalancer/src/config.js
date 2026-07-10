@@ -42,6 +42,15 @@ export const config = {
   port: num(process.env.PORT, 10000),
   targets: parseTargets(process.env.BACKEND_TARGETS || ''),
 
+  // Origins the balancer will name in its own error responses. Must mirror the
+  // backends' list, or an error reads as a CORS failure instead of an error.
+  allowedOrigins: new Set(
+    [process.env.CLIENT_URL, process.env.CLIENT_URL_FALLBACK, process.env.DEV_CLIENT_URL]
+      .concat((process.env.ALLOWED_ORIGINS || '').split(','))
+      .map((value) => value?.trim().replace(/\/$/, ''))
+      .filter(Boolean),
+  ),
+
   healthPath: process.env.HEALTH_CHECK_PATH || '/api/health',
   // 0 disables active probing. Required on hosts that suspend idle instances
   // (Render's free tier): a probe is inbound traffic, so polling would hold every
