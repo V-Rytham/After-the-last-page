@@ -478,6 +478,12 @@ const MeetingHub = () => {
     setPhase('preferences');
   }, [cleanupMedia, endSession]);
 
+  const requestLeave = useCallback(() => {
+    setLeavePromptBody('You will disconnect from this reader.');
+    pendingLeaveActionRef.current = () => returnToPreferences('leave-reader');
+    setLeavePromptOpen(true);
+  }, [returnToPreferences]);
+
   const toggleMic = useCallback(() => {
     const tracks = localStreamRef.current?.getAudioTracks() || [];
     if (!tracks.length) return;
@@ -777,12 +783,6 @@ const MeetingHub = () => {
     || mediaStatus === 'connecting'
     || mediaStatus === 'connected'
     || mediaStatus === 'reconnecting';
-
-  const requestLeave = useCallback(() => {
-    setLeavePromptBody('You will disconnect from this reader.');
-    pendingLeaveActionRef.current = () => returnToPreferences('leave-reader');
-    setLeavePromptOpen(true);
-  }, [returnToPreferences]);
 
   const getMessageTimeLabel = (timestamp) => {
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp || Date.now());

@@ -5,6 +5,7 @@ import { fetchRecentReadingActivity } from '../utils/readingActivityApi';
 import CurrentReadingCard from '../components/desk/CurrentReadingCard';
 import BookCardEditorial from '../components/desk/BookCardEditorial';
 import RecommendationRow from '../components/desk/RecommendationRow';
+import DeskSkeleton from '../components/desk/DeskSkeleton';
 import { readSelectedGenres } from '../utils/genrePreferences';
 import AuthRequired from '../components/auth/AuthRequired';
 import './BooksLibrary.css';
@@ -283,7 +284,6 @@ const BooksLibrary = ({ currentUser }) => {
   const recommendationTitle = recommendationBase?.title
     ? `Because you read ${recommendationBase.title}`
     : 'Recommended for you';
-  const recommendationLoadingTitle = 'Curating recommendations for you';
   const matchesSearchAndCategory = useCallback((book) => {
     if (!book) return false;
 
@@ -333,22 +333,20 @@ const BooksLibrary = ({ currentUser }) => {
     !isMember ? <AuthRequired previewClassName="desk-page" previewLabel="" /> : (
     <div className="desk-page editorial-theme">
       <div className="desk-shell">
+        {loading ? (
+          <DeskSkeleton greeting={greeting} />
+        ) : (
+        <>
         <section className="desk-hero" aria-label="Current reading">
           <h2>{greeting}</h2>
-          {loading
-            ? <div className="desk-skeleton desk-skeleton--hero" />
-            : <CurrentReadingCard book={currentReading?.book} session={currentReading?.session} />}
+          <CurrentReadingCard book={currentReading?.book} session={currentReading?.session} />
         </section>
 
         <section className="desk-section" aria-label="Recent activity">
           <div className="desk-section__heading">
             <h2>Recent activity</h2>
           </div>
-          {loading ? (
-            <div className="card-row card-row--recent" role="status" aria-label="Loading recent activity">
-              {Array.from({ length: MAX_RECENT_ACTIVITY }).map((_, index) => <div key={`activity-skeleton-${index}`} className="desk-skeleton desk-skeleton--card" />)}
-            </div>
-          ) : filteredRecentActivity.length > 0 ? (
+          {filteredRecentActivity.length > 0 ? (
             <div className="card-row card-row--recent" role="list">
               {filteredRecentActivity.map(({ book, session }) => (
                 <BookCardEditorial key={getBookKey(book)} book={book} session={session} />
@@ -370,18 +368,6 @@ const BooksLibrary = ({ currentUser }) => {
             </div>
           )}
         </section>
-
-        {recommendationLoading && (
-          <section className="desk-section" aria-label="Recommendations loading">
-            <div className="desk-section__heading">
-              <h2>{recommendationLoadingTitle}</h2>
-              <p>Finding books matched to your reading history.</p>
-            </div>
-            <div className="card-row card-row--recommendations" role="status" aria-label="Loading recommendations">
-              {Array.from({ length: 6 }).map((_, index) => <div key={`recommendation-skeleton-${index}`} className="desk-skeleton desk-skeleton--card" />)}
-            </div>
-          </section>
-        )}
 
         {!recommendationLoading && hasRecommendations && (
           <>
@@ -447,6 +433,8 @@ const BooksLibrary = ({ currentUser }) => {
             <p className="desk-empty-copy">{error}</p>
             <button type="button" className="desk-btn desk-btn--secondary" onClick={() => refreshDesk({ force: true })}>Retry loading desk</button>
           </section>
+        )}
+        </>
         )}
       </div>
     </div>)

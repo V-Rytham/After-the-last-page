@@ -538,6 +538,13 @@ html[data-theme='dark'] .current-reading-card__resume {
   opacity: 0.8;
 }
 
+/* One live region for the whole desk load; `display: contents` keeps the
+   hero/section children as direct flex items of `.desk-shell` so the column
+   gaps are unchanged. */
+.desk-loading {
+  display: contents;
+}
+
 .desk-skeleton {
   border-radius: 12px;
   background: linear-gradient(110deg, var(--surface-2) 18%, var(--surface-1) 40%, var(--surface-2) 60%);

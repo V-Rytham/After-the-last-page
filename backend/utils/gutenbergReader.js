@@ -1,9 +1,77 @@
 const GUTENBERG_HOST = 'https://www.gutenberg.org';
 const GUTENDEX_HOST = 'https://gutendex.com';
+// Project Gutenberg blocks many datacenter/cloud IP ranges on the main host,
+// which surfaces as a 403/503 and, downstream, a bare 502 in the reader. These
+// mirrors sit on different infrastructure and serve the identical files, so we
+// fall through to them when the main host refuses us.
+const GUTENBERG_MIRRORS = ['https://gutenberg.pglaf.org', 'http://aleph.gutenberg.org'];
 
 const DEFAULT_TIMEOUT_MS = 70_000;
+// Per-request cap when racing through fetch candidates: without it, six blocked
+// or hung hosts could stack up to 6 x DEFAULT_TIMEOUT_MS before we give up.
+const PER_ATTEMPT_TIMEOUT_MS = 20_000;
 const DEFAULT_PROCESSING_BUDGET_MS = 40_000;
 const DEFAULT_INITIAL_CHAPTERS = 5;
+
+// Progressive pagination re-invokes the reader with each new cursor, and every
+// call used to re-download the entire book (~hundreds of KB) just to slice a few
+// more chapters out of it. That is both slow and exactly the request pattern
+// that gets an IP throttled. Cache the raw text so one successful fetch serves
+// every page.
+const TEXT_CACHE_TTL_MS = 60 * 60 * 1000;
+const TEXT_CACHE_MAX_ENTRIES = 40;
+const textCache = new Map(); // gutenbergId -> { text, expiresAt }
+
+const readTextCache = (gutenbergId) => {
+  const entry = textCache.get(gutenbergId);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    textCache.delete(gutenbergId);
+    return null;
+  }
+  // Refresh recency so the map's insertion order doubles as an LRU list.
+  textCache.delete(gutenbergId);
+  textCache.set(gutenbergId, entry);
+  return entry.text;
+};
+
+const writeTextCache = (gutenbergId, text) => {
+  if (!text) return;
+  textCache.delete(gutenbergId);
+  textCache.set(gutenbergId, { text, expiresAt: Date.now() + TEXT_CACHE_TTL_MS });
+  while (textCache.size > TEXT_CACHE_MAX_ENTRIES) {
+    const oldest = textCache.keys().next().value;
+    textCache.delete(oldest);
+  }
+};
+
+// Project Gutenberg's mirror layout: every digit of the id except the last is a
+// directory, then a folder named for the full id. Ids under 10 live under `0/`.
+const mirrorDirPath = (gutenbergId) => {
+  const digits = String(gutenbergId);
+  const prefix = digits.length <= 1 ? '0' : digits.slice(0, -1).split('').join('/');
+  return `${prefix}/${digits}`;
+};
+
+const hostOf = (url) => {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
+  }
+};
+
+// Ordered by preference: the canonical main-host cache path first (authoritative
+// for existence), then each mirror's UTF-8 (`-0`) and legacy (`.txt`) variants.
+const buildTextCandidates = (gutenbergId) => {
+  const id = String(gutenbergId);
+  const candidates = [`${GUTENBERG_HOST}/cache/epub/${id}/pg${id}.txt`];
+  for (const mirror of GUTENBERG_MIRRORS) {
+    const dir = `${mirror}/${mirrorDirPath(id)}`;
+    candidates.push(`${dir}/${id}-0.txt`, `${dir}/${id}.txt`);
+  }
+  return candidates;
+};
 
 export const parseStrictGutenbergId = (value) => {
   const raw = String(value || '').trim();
@@ -66,16 +134,59 @@ export const fetchGutenbergMetadata = async (gutenbergId, { timeoutMs = DEFAULT_
 };
 
 export const fetchGutenbergText = async (gutenbergId, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) => {
-  const response = await fetchWithTimeout(
-    `${GUTENBERG_HOST}/ebooks/${encodeURIComponent(String(gutenbergId))}.txt.utf-8`,
-    { timeoutMs },
-  );
+  const cached = readTextCache(gutenbergId);
+  if (cached != null) return cached;
 
-  if (!response.ok) {
-    throw await upstreamFailure(response, GUTENBERG_HOST, `Unable to fetch Gutenberg text for #${gutenbergId}.`);
+  const perAttemptTimeout = Math.min(timeoutMs, PER_ATTEMPT_TIMEOUT_MS);
+  // The main host is authoritative for whether the book exists at all, so keep
+  // its response to drive the final error: a 404 there is a genuine 404, while a
+  // 403/503 (an IP block) after every mirror also failed is a real 502.
+  let primaryResponse = null;
+  let lastResponse = null;
+  let lastError = null;
+
+  for (const url of buildTextCandidates(gutenbergId)) {
+    try {
+      const response = await fetchWithTimeout(url, { timeoutMs: perAttemptTimeout });
+      if (response.ok) {
+        const text = await response.text();
+        writeTextCache(gutenbergId, text);
+        return text;
+      }
+      lastResponse = response;
+      if (!primaryResponse && url.startsWith(GUTENBERG_HOST)) primaryResponse = response;
+    } catch (error) {
+      // A hung or unreachable mirror shouldn't abort the fallback chain.
+      lastError = error;
+    }
   }
 
-  return response.text();
+  const authoritative = primaryResponse || lastResponse;
+  if (authoritative) {
+    throw await upstreamFailure(authoritative, hostOf(authoritative.url), `Unable to fetch Gutenberg text for #${gutenbergId}.`);
+  }
+  // Every candidate threw (timeouts / network errors) — surface that, not a 502.
+  throw lastError || new Error(`Unable to fetch Gutenberg text for #${gutenbergId}.`);
+};
+
+// Fallback title/author when gutendex is unreachable: Project Gutenberg texts
+// carry a "Title:"/"Author:" header block before the START marker.
+const extractHeaderMetadata = (rawText, gutenbergId) => {
+  const lines = String(rawText || '').replaceAll('\r\n', '\n').split('\n', 600);
+  let title = '';
+  let author = '';
+  for (const line of lines) {
+    if (startMarkerRegex.test(line.trim())) break;
+    const titleMatch = /^title:\s*(.+)$/i.exec(line);
+    if (titleMatch && !title) title = titleMatch[1].trim();
+    const authorMatch = /^author:\s*(.+)$/i.exec(line);
+    if (authorMatch && !author) author = authorMatch[1].trim();
+  }
+  return {
+    title: title || `Project Gutenberg #${gutenbergId}`,
+    author: author || 'Unknown',
+    gutenbergId,
+  };
 };
 
 export const stripGutenbergBoilerplate = (rawText) => {
@@ -326,8 +437,19 @@ export const readGutenbergBookStateless = async (gutenbergId, options = {}) => {
     processingBudgetMs = DEFAULT_PROCESSING_BUDGET_MS,
     initialChapterCount = DEFAULT_INITIAL_CHAPTERS,
   } = options;
-  const metadata = await fetchGutenbergMetadata(gutenbergId, options);
+  // Text is the load-bearing fetch; if metadata (a separate host) is down, we
+  // still serve the book with the title/author parsed from its own header.
+  let metadata = null;
+  try {
+    metadata = await fetchGutenbergMetadata(gutenbergId, options);
+  } catch (error) {
+    console.error('[gutenbergReader] metadata fetch failed, falling back to header', {
+      gutenbergId,
+      status: error?.upstreamStatus || error?.statusCode,
+    });
+  }
   const rawText = await fetchGutenbergText(gutenbergId, options);
+  if (!metadata) metadata = extractHeaderMetadata(rawText, gutenbergId);
   const parsedCursor = normalizeCursor(cursor);
   const effectiveChapterLimit = parsedCursor === 0 ? initialChapterCount : maxChapters;
   const processed = processGutenbergTextProgressive(rawText, {
